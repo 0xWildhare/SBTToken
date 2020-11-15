@@ -7,9 +7,9 @@ import "@openzeppelin/contracts/GSN/Context.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
-import "../sablier/packages/shared-contracts/lifecycle/OwnableWithoutRenounce.sol";
-import "../sablier/packages/shared-contracts/lifecycle/PausableWithoutRenounce.sol";
-import "../sablier/packages/shared-contracts/compound/Exponential.sol";
+//import "../sablier/packages/shared-contracts/lifecycle/OwnableWithoutRenounce.sol";
+//import "../sablier/packages/shared-contracts/lifecycle/PausableWithoutRenounce.sol";
+//import "../sablier/packages/shared-contracts/compound/Exponential.sol";
 
 /**
   *this implementation of the ERC20 standard requires modification to stopTime
@@ -134,84 +134,7 @@ mapping(uint256 => Stream) private streams;
     return stream.stopTime - stream.startTime;
 }
 
-/*** Public Effects & Interactions Functions ***/
 
-    struct CreateStreamLocalVars {
-        MathError mathErr;
-        uint256 duration;
-        uint256 ratePerSecond;
-    }
-
-    /**
-     * @notice Creates a new stream funded by `msg.sender` and paid towards `recipient`.
-     * @dev Throws if paused.
-     *  Throws if the recipient is the zero address, the contract itself or the caller.
-     *  Throws if the deposit is 0.
-     *  Throws if the start time is before `block.timestamp`.
-     *  Throws if the stop time is before the start time.
-     *  Throws if the duration calculation has a math error.
-     *  Throws if the deposit is smaller than the duration.
-     *  Throws if the deposit is not a multiple of the duration.
-     *  Throws if the rate calculation has a math error.
-     *  Throws if the next stream id calculation has a math error.
-     *  Throws if the contract is not allowed to transfer enough tokens.
-     *  Throws if there is a token transfer failure.
-     * @param recipient The address towards which the money is streamed.
-     * @param deposit The amount of money to be streamed.
-     * @param tokenAddress The ERC20 token to use as streaming currency.
-     * @param startTime The unix timestamp for when the stream starts.
-     * @param stopTime The unix timestamp for when the stream stops.
-     * @return The uint256 id of the newly created stream.
-     */
-    function createStream(address recipient, uint256 deposit, address tokenAddress, uint256 startTime, uint256 stopTime)
-        public
-        whenNotPaused
-        returns (uint256)
-    {
-        require(recipient != address(0x00), "stream to the zero address");
-        require(recipient != address(this), "stream to the contract itself");
-        require(recipient != msg.sender, "stream to the caller");
-        require(deposit > 0, "deposit is zero");
-        require(startTime >= block.timestamp, "start time before block.timestamp");
-        require(stopTime > startTime, "stop time before the start time");
-
-        CreateStreamLocalVars memory vars;
-        (vars.mathErr, vars.duration) = subUInt(stopTime, startTime);
-        /* `subUInt` can only return MathError.INTEGER_UNDERFLOW but we know `stopTime` is higher than `startTime`. */
-        assert(vars.mathErr == MathError.NO_ERROR);
-
-        /* Without this, the rate per second would be zero. */
-        require(deposit >= vars.duration, "deposit smaller than time delta");
-
-        /* This condition avoids dealing with remainders */
-        require(deposit % vars.duration == 0, "deposit not multiple of time delta");
-
-        (vars.mathErr, vars.ratePerSecond) = divUInt(deposit, vars.duration);
-        /* `divUInt` can only return MathError.DIVISION_BY_ZERO but we know `duration` is not zero. */
-        assert(vars.mathErr == MathError.NO_ERROR);
-
-        /* Create and store the stream object. */
-        uint256 streamId = nextStreamId;
-        streams[streamId] = Types.Stream({
-            remainingBalance: deposit,
-            deposit: deposit,
-            isEntity: true,
-            ratePerSecond: vars.ratePerSecond,
-            recipient: recipient,
-            sender: msg.sender,
-            startTime: startTime,
-            stopTime: stopTime,
-            tokenAddress: tokenAddress
-        });
-
-        /* Increment the next stream id. */
-        (vars.mathErr, nextStreamId) = addUInt(nextStreamId, uint256(1));
-        require(vars.mathErr == MathError.NO_ERROR, "next stream id calculation error");
-
-        require(IERC20(tokenAddress).transferFrom(msg.sender, address(this), deposit), "token transfer failure");
-        emit CreateStream(streamId, msg.sender, recipient, deposit, tokenAddress, startTime, stopTime);
-        return streamId;
-    }
 
 
 
