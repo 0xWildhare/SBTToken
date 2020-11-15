@@ -7,9 +7,6 @@ import "@openzeppelin/contracts/GSN/Context.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
-//import "../sablier/packages/shared-contracts/lifecycle/OwnableWithoutRenounce.sol";
-//import "../sablier/packages/shared-contracts/lifecycle/PausableWithoutRenounce.sol";
-//import "../sablier/packages/shared-contracts/compound/Exponential.sol";
 
 /**
   *this implementation of the ERC20 standard requires modification to stopTime
@@ -89,6 +86,15 @@ mapping(uint256 => Stream) private streams;
     }
 
 
+    /*these mappings help to eliminate a large portion of the sablier logic that wasn't
+      *directly applicable to this project, and to allow the balanceOf and transfer (and other)
+      * functions to interface according to ERC20 standard
+      */
+
+      mapping(address => uint256) private streamSenders;
+      mapping(address => uint256) private streamRecievers;
+
+
 /*
   ***CONTRACT LOGIC STARTS HERE***
   */
@@ -106,6 +112,83 @@ mapping(uint256 => Stream) private streams;
         return _balances[account];
     }
 
+
+
+
+
+
+/*
+****this section is adapted and simplified from Sablier***
+*differences  - takes duration of stream instead of startTime and stopTime
+              - does not take token address
+              - allows tokens to be streamed to 0x0
+              - allows tokens to be streamed to this contracts
+              - automatically starts stream at current block timestamp
+
+*/
+event StreamCreated(uint streamId);
+
+function createStream(address recipient, uint256 deposit, uint256 duration)
+    public
+    returns (uint256)
+{
+
+        require(recipient != msg.sender, "stream to the caller");
+        require(deposit > 0, "deposit is zero");
+
+        require(deposit >= duration, "deposit smaller than time delta");
+
+        /* This condition avoids dealing with remainders */
+        require(deposit % duration == 0, "deposit not multiple of time delta");
+
+        uint ratePerSecond = deposit.div(duration);
+        uint stopTime = block.timestamp.add(duration);
+
+        /* Create and store the stream object. */
+        uint256 streamId = nextStreamId;
+        streams[streamId] = Stream({
+            remainingBalance: deposit,
+            deposit: deposit,
+            isEntity: true,
+            ratePerSecond: ratePerSecond,
+            recipient: recipient,
+            sender: msg.sender,
+            startTime: block.timestamp,
+            stopTime: stopTime
+            });
+
+            nextStreamId = nextStreamId.add(1);
+            emit StreamCreated(streamId);
+            return(streamId);
+
+
+
+}
+
+
+
+function getStream(uint256 streamId)
+        external
+        view
+        streamExists(streamId)
+        returns (
+            address sender,
+            address recipient,
+            uint256 deposit,
+            uint256 startTime,
+            uint256 stopTime,
+            uint256 remainingBalance,
+            uint256 ratePerSecond
+        )
+    {
+        sender = streams[streamId].sender;
+        recipient = streams[streamId].recipient;
+        deposit = streams[streamId].deposit;
+        startTime = streams[streamId].startTime;
+        stopTime = streams[streamId].stopTime;
+        remainingBalance = streams[streamId].remainingBalance;
+        ratePerSecond = streams[streamId].ratePerSecond;
+    }
 
 
 

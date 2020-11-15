@@ -46,4 +46,55 @@ describe("SBTToken", function() {
   });
 });
 
+  describe('start stream', () => {
+    let recipient;
+    let stringId;
+
+    beforeEach(async () => {
+      recipient = ethers.provider.getSigner(2);
+      const tx = await token.createStream(
+        recipient.getAddress(),
+        ethers.utils.parseEther("10"),
+        1000
+      );
+
+      const reciept = await tx.wait();
+
+      //console.log(reciept);
+
+      });
+   it('first stream should exist', async() => {
+      const stream = await token.getStream(1);//token.isStream(1);
+
+      assert(stream);
+    })
+
+    it('second stream should not exist', async() => {
+      let ex;
+      try {
+        await token.getStream(2);
+      }
+      catch(_ex) {
+        ex = _ex;
+      }
+      assert(ex); // asserts that ex is truthy, otherwise this fails
+
+
+     })
+
+     it('after creating 2 entities, 2nd stream should be an entity', async() => {
+       recipient = ethers.provider.getSigner(3);
+       const tx = await token.createStream(
+         recipient.getAddress(),
+         ethers.utils.parseEther("10"),
+         1000
+       );
+       const stream = await token.getStream(2);
+       console.log(stream);
+       console.log(await recipient.getAddress());
+       assert(stream);
+        })
+
+  })
+
 });
