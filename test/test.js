@@ -54,8 +54,8 @@ describe("SBTToken", function() {
       recipient = ethers.provider.getSigner(2);
       const tx = await token.createStream(
         recipient.getAddress(),
-        ethers.utils.parseEther("12"),
-        1000
+        ethers.utils.parseEther("24"),
+        2
       );
 
       const reciept = await tx.wait();
@@ -80,15 +80,7 @@ describe("SBTToken", function() {
       assert(ex); // asserts that ex is truthy, otherwise this fails
      })
 
-     it('should return deposit of 12 (temporary test)', async() => {
-       const balance = await token.balanceOf(recipient.getAddress());
-       assert.equal(
-         balance.toString(),
-         ethers.utils.parseEther("12").toString()
-       );
-     })
-
-     it('after creating 2 entities, 2nd stream should be an entity', async() => {
+     it('after creating 2 streams, 2nd stream should exist', async() => {
        recipient = ethers.provider.getSigner(3);
        const tx = await token.createStream(
          recipient.getAddress(),
@@ -100,6 +92,61 @@ describe("SBTToken", function() {
       // console.log(await recipient.getAddress());
        assert(stream);
         })
+
+     it('should return deposit of 0 immediately', async() => {
+       const balance = await token.balanceOf(recipient.getAddress());
+       const deployerBalance = await token.balanceOf(deployer.getAddress());
+       console.log(deployerBalance.toString());
+       assert.equal(
+         balance.toString(),
+         ethers.utils.parseEther("0").toString()
+       );
+     })
+
+     it('should return a balance of 12 after 1 second', async() => {
+
+       await hre.network.provider.request({
+         method: "evm_increaseTime",
+         params: [1]
+       });
+       await hre.network.provider.request({
+         method: "evm_mine",
+         params: []
+       });
+
+       const balance = await token.balanceOf(recipient.getAddress());
+       const deployerBalance = await token.balanceOf(deployer.getAddress());
+       console.log(deployerBalance.toString());
+          assert.equal(
+            balance.toString(),
+            ethers.utils.parseEther("12").toString()
+            );
+          });
+
+      it('should return a balance of 24 after 2 second', async() => {
+
+        await hre.network.provider.request({
+          method: "evm_increaseTime",
+          params: [2]
+        });
+        await hre.network.provider.request({
+          method: "evm_mine",
+          params: []
+        });
+
+        const balance = await token.balanceOf(recipient.getAddress());
+        const deployerBalance = await token.balanceOf(deployer.getAddress());
+        console.log(deployerBalance.toString());
+           assert.equal(
+             balance.toString(),
+             ethers.utils.parseEther("24").toString()
+             );
+           });
+
+
+
+
+
 
   })
 

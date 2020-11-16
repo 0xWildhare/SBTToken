@@ -110,26 +110,53 @@ mapping(uint256 => Stream) private streams;
 
     function balanceOf(address account) public view override returns (uint256) {
         uint calculatedBalance = _balances[account];
-        if(streamSenders[msg.sender] == 0 && streamRecievers[msg.sender] == 0) return calculatedBalance;
+         //no streamsfor account, returns un-modified balance
+        if(streamSenders[account] == 0 && streamRecievers[account] == 0) return calculatedBalance;
+        //if there is a send stream for account, modify accordingly (only handles 1 send stream per account)
+        if(streamSenders[account] != 0) {
+          uint sendId = streamSenders[account];
+          Stream memory streamS = streams[sendId];
+          uint deltaS = deltaOf(sendId);
+          uint sentBalance = deltaS.mul(streamS.ratePerSecond); //this is total amount sent, not necessarily transacted yet
 
-        if(streamSenders[msg.sender] != 0) {
-          uint sendId = streamSenders[msg.sender];
+          /*
+          * If the stream `balance` does not equal `deposit`, it means there have been withdrawals.
+          * We have to subtract the total amount withdrawn from the amount of money that has been
+          * streamed until now.
+          */
 
-          return streams[sendId].deposit;
+            if (streamS.deposit > streamS.remainingBalance) {
+              uint totalSent = streamS.deposit.sub(streamS.remainingBalance);
+              sentBalance = sentBalance.sub(totalSent);
+            }
+            calculatedBalance = calculatedBalance.sub(sentBalance);
         }
-/*****
-***** TODO: incorporate this:
-*****     function balanceOf(uint256 streamId, address who) public view streamExists(streamId) returns (uint256 balance) {
-        Types.Stream memory stream = streams[streamId];
-        BalanceOfLocalVars memory vars;
+        //if there is a recieve stream for account, modify accordingly
+        if(streamRecievers[account] != 0) {
+          uint recieveId = streamRecievers[account];
+          Stream memory streamR = streams[recieveId];
+          uint deltaR = deltaOf(recieveId);
+          uint recievedBalance = deltaR.mul(streamR.ratePerSecond);
 
-        uint256 delta = deltaOf(streamId);
-        (vars.mathErr, vars.recipientBalance) = mulUInt(delta, stream.ratePerSecond);
-        require(vars.mathErr == MathError.NO_ERROR, "recipient balance calculation error");
-******/
+          /*
+          * If the stream `balance` does not equal `deposit`, it means there have been withdrawals.
+          * We have to subtract the total amount withdrawn from the amount of money that has been
+          * streamed until now.
+          */
+
+            if (streamR.deposit > streamR.remainingBalance) {
+              uint totalRecieved = streamR.deposit.sub(streamR.remainingBalance);
+              recievedBalance = recievedBalance.sub(totalRecieved);
+            }
+            calculatedBalance = calculatedBalance.add(recievedBalance);
+        }
+        return calculatedBalance;
+
+      }
 
 
-    }
+
+
 
 
 
