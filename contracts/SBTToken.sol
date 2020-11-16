@@ -109,7 +109,7 @@ mapping(uint256 => Stream) private streams;
   */
 
     function balanceOf(address account) public view override returns (uint256) {
-        return _balances[account];
+        if(!streamSenders[msg.sender] && !streamRecievers[msg.sender]) return _balances[account];
     }
 
 
@@ -124,6 +124,10 @@ mapping(uint256 => Stream) private streams;
               - allows tokens to be streamed to 0x0
               - allows tokens to be streamed to this contracts
               - automatically starts stream at current block timestamp
+
+  *TODO: senders and rvievers should be unique (one address cannot send
+  multiple Streams; one address cannot recieve multiple streams [with the exception of 0x0])
+
 
 */
 event StreamCreated(uint streamId);
@@ -157,12 +161,14 @@ function createStream(address recipient, uint256 deposit, uint256 duration)
             stopTime: stopTime
             });
 
+            streamSenders[msg.sender] = streamId;
+            if(recipient != address(0x00)) {
+              streamRecievers[recipient] = streamId;
+            }
+
             nextStreamId = nextStreamId.add(1);
             emit StreamCreated(streamId);
             return(streamId);
-
-
-
 }
 
 
