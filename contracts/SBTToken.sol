@@ -105,13 +105,12 @@ mapping(uint256 => Stream) private streams;
     }
 
 /*
-  *the following functions (balanceOf, transfer, etc) are modified from ERC20
+  *the following functions (balanceOf, _beforeTokenTransfer, etc) are modified from ERC20
   */
 
     function balanceOf(address account) public view override returns (uint256) {
         uint calculatedBalance = _balances[account];
-         //no streamsfor account, returns un-modified balance
-        if(streamSenders[account] == 0 && streamRecievers[account] == 0) return calculatedBalance;
+
         //if there is a send stream for account, modify accordingly (only handles 1 send stream per account)
         if(streamSenders[account] != 0) {
           uint sendId = streamSenders[account];
@@ -154,6 +153,74 @@ mapping(uint256 => Stream) private streams;
 
       }
 
+      /**
+       * @dev Hook that is called before any transfer of tokens. This includes
+       * minting and burning.
+       *
+       * Calling conditions:
+       *
+       * - when `from` and `to` are both non-zero, `amount` of ``from``'s tokens
+       * will be to transferred to `to`.
+       * - when `from` is zero, `amount` tokens will be minted for `to`.
+       * - when `to` is zero, `amount` of ``from``'s tokens will be burned.
+       * - `from` and `to` are never both zero.
+       *
+       * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
+           */
+
+      function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual {
+
+        //get new balances (!shoes)
+        uint balanceFrom = balanceOf(from);
+        uint balanceTo = balanceOf(to);
+
+        //fins the streamId's that need to be updated
+        uint ssf = streamSenders[from];
+        uint srf = streamRecievers[from];
+        uint sst = streamSenders[to];
+        uint srt = streamRecievers[to];
+
+        //update remainingBalance on streams
+        if(ssf != 0) _updateRemainingBalance(ssf);
+        if(srf != 0) _updateRemainingBalance(srf);
+        if(sst != 0) _updateRemainingBalance(sst);
+        if(srt != 0) _updateRemainingBalance(srt);
+
+        //update balances from streams
+        _balances[from] = balanceFrom;
+        _balances[to] = balanceTo;
+
+        //require sender has enough to cover remaining balance after sending amount.
+        //unless its the mint function, and coming from 0
+        uint sendersStreamRemainingBalance = streams[ssf].remainingBalance;
+        uint sendersAvailableBalance = balanceFrom.sub(sendersStreamRemainingBalance);
+        if(from != address(0)) require(sendersAvailableBalance >= amount, "not enough money");
+
+       }
+
+       /*
+        *since the "heavy lifting" is done in balanceOf, which is used to update the
+        *_balances mapping above, this function just has to do the clean-up work, and can be
+        *quite simple.
+        */
+
+       function _updateRemainingBalance(uint streamId) internal {
+         Stream memory stream = streams[streamId];
+         uint delta = deltaOf(streamId);
+         uint streamedBalance = delta.mul(stream.ratePerSecond);
+         stream.remainingBalance = stream.deposit.sub(streamedBalance);
+         //kill it if done
+         if (stream.remainingBalance == 0){
+            delete streamSenders[stream.sender];
+            delete streamRecievers[stream.recipient];
+            delete streams[streamId];
+          }
+
+         }
+
+
+
+
 
 
 
@@ -172,7 +239,9 @@ mapping(uint256 => Stream) private streams;
               - automatically starts stream at current block timestamp
 
   *TODO: senders and rvievers should be unique (one address cannot send
-  multiple Streams; one address cannot recieve multiple streams [with the exception of 0x0])
+  multiple Streams; one address cannot recieve multiple streams [with the exception of 0x0]
+  this is for simplicity of the balanceOf and transfer functions - otherwise, these
+  will have to be modified to look at these)
 
 
 */
@@ -245,11 +314,6 @@ function getStream(uint256 streamId)
 
 
 
-
-
-
-
-
     /*
     *The following functions come from Sablier.sol
     */
@@ -268,21 +332,6 @@ function getStream(uint256 streamId)
     if (block.timestamp < stream.stopTime) return block.timestamp - stream.startTime;
     return stream.stopTime - stream.startTime;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 /**
@@ -347,10 +396,10 @@ function getStream(uint256 streamId)
      * - `recipient` cannot be the zero address.
      * - the caller must have a balance of at least `amount`.
      */
-    function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
-        _transfer(_msgSender(), recipient, amount);
-        return true;
-    }
+     function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
+         _transfer(_msgSender(), recipient, amount);
+         return true;
+     }
 
     /**
      * @dev See {IERC20-allowance}.
@@ -438,7 +487,9 @@ function getStream(uint256 streamId)
      * - `sender` cannot be the zero address.
      * - `recipient` cannot be the zero address.
      * - `sender` must have a balance of at least `amount`.
-     */
+*/
+
+
     function _transfer(address sender, address recipient, uint256 amount) internal virtual {
         require(sender != address(0), "ERC20: transfer from the zero address");
         require(recipient != address(0), "ERC20: transfer to the zero address");
@@ -449,6 +500,7 @@ function getStream(uint256 streamId)
         _balances[recipient] = _balances[recipient].add(amount);
         emit Transfer(sender, recipient, amount);
     }
+
 
     /** @dev Creates `amount` tokens and assigns them to `account`, increasing
      * the total supply.
@@ -522,21 +574,22 @@ function getStream(uint256 streamId)
         _decimals = decimals_;
     }
 
-    /**
-     * @dev Hook that is called before any transfer of tokens. This includes
-     * minting and burning.
-     *
-     * Calling conditions:
-     *
-     * - when `from` and `to` are both non-zero, `amount` of ``from``'s tokens
-     * will be to transferred to `to`.
-     * - when `from` is zero, `amount` tokens will be minted for `to`.
-     * - when `to` is zero, `amount` of ``from``'s tokens will be burned.
-     * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
-     */
-    function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual { }
+        /**
+         * @dev Hook that is called before any transfer of tokens. This includes
+         * minting and burning.
+         *
+         * Calling conditions:
+         *
+         * - when `from` and `to` are both non-zero, `amount` of ``from``'s tokens
+         * will be to transferred to `to`.
+         * - when `from` is zero, `amount` tokens will be minted for `to`.
+         * - when `to` is zero, `amount` of ``from``'s tokens will be burned.
+         * - `from` and `to` are never both zero.
+         *
+         * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
+         *replaced above
 
+        function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual { }
+             */
 
-}
+    }
