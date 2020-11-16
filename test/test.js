@@ -54,7 +54,7 @@ describe("SBTToken", function() {
       recipient = ethers.provider.getSigner(2);
       const tx = await token.createStream(
         recipient.getAddress(),
-        ethers.utils.parseEther("10"),
+        ethers.utils.parseEther("12"),
         1000
       );
 
@@ -78,8 +78,14 @@ describe("SBTToken", function() {
         ex = _ex;
       }
       assert(ex); // asserts that ex is truthy, otherwise this fails
+     })
 
-
+     it('should return deposit of 12 (temporary test)', async() => {
+       const balance = await token.balanceOf(recipient.getAddress());
+       assert.equal(
+         balance.toString(),
+         ethers.utils.parseEther("12").toString()
+       );
      })
 
      it('after creating 2 entities, 2nd stream should be an entity', async() => {
@@ -90,8 +96,8 @@ describe("SBTToken", function() {
          1000
        );
        const stream = await token.getStream(2);
-       console.log(stream);
-       console.log(await recipient.getAddress());
+      // console.log(stream);
+      // console.log(await recipient.getAddress());
        assert(stream);
         })
 

@@ -109,7 +109,26 @@ mapping(uint256 => Stream) private streams;
   */
 
     function balanceOf(address account) public view override returns (uint256) {
-        if(!streamSenders[msg.sender] && !streamRecievers[msg.sender]) return _balances[account];
+        uint calculatedBalance = _balances[account];
+        if(streamSenders[msg.sender] == 0 && streamRecievers[msg.sender] == 0) return calculatedBalance;
+
+        if(streamSenders[msg.sender] != 0) {
+          uint sendId = streamSenders[msg.sender];
+
+          return streams[sendId].deposit;
+        }
+/*****
+***** TODO: incorporate this:
+*****     function balanceOf(uint256 streamId, address who) public view streamExists(streamId) returns (uint256 balance) {
+        Types.Stream memory stream = streams[streamId];
+        BalanceOfLocalVars memory vars;
+
+        uint256 delta = deltaOf(streamId);
+        (vars.mathErr, vars.recipientBalance) = mulUInt(delta, stream.ratePerSecond);
+        require(vars.mathErr == MathError.NO_ERROR, "recipient balance calculation error");
+******/
+
+
     }
 
 
