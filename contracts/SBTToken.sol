@@ -37,12 +37,8 @@ contract SBTToken is Context, IERC20 {
 
 
   /**
-    *this section streamID, Struct, mapping and modifiers comes from the Sablier
-    *contract, and has been modified to remove
-    *the fields not used for this application (tokenAddress).
-    */
+    *****These items adapted from Sablier******
 
-    /**
    * @notice Counter for new stream ids.
    */
   uint256 public nextStreamId;
@@ -64,20 +60,7 @@ contract SBTToken is Context, IERC20 {
  */
 mapping(uint256 => Stream) private streams;
 
-    /*** Modifiers from Sablier ***/
-
-    /**
-      * @dev Throws if the caller is not the sender of the recipient of the stream.
-      */
-    modifier onlySenderOrRecipient(uint256 streamId) {
-        require(
-            msg.sender == streams[streamId].sender || msg.sender == streams[streamId].recipient,
-            "caller is not the sender or the recipient of the stream"
-        );
-        _;
-    }
-
-    /**
+      /**
     * @dev Throws if the provided id does not point to a valid stream.
     */
     modifier streamExists(uint256 streamId) {
@@ -86,11 +69,10 @@ mapping(uint256 => Stream) private streams;
     }
 
 
-    /*these mappings help to eliminate a large portion of the sablier logic that wasn't
+    /*the two mappings help to eliminate a large portion of the sablier logic that wasn't
       *directly applicable to this project, and to allow the balanceOf and transfer (and other)
-      * functions to interface according to ERC20 standard
+      * functions to interface according to ERC20 standard.
       */
-
       mapping(address => uint256) private streamSenders;
       mapping(address => uint256) private streamRecievers;
 
@@ -105,7 +87,7 @@ mapping(uint256 => Stream) private streams;
     }
 
 /*
-  *the following functions (balanceOf, _beforeTokenTransfer, etc) are modified from ERC20
+  ****the following functions (balanceOf, _beforeTokenTransfer) are heavily modified from ERC20***
   */
 
     function balanceOf(address account) public view override returns (uint256) {
@@ -199,35 +181,28 @@ mapping(uint256 => Stream) private streams;
        }
 
        /*
-        *since the "heavy lifting" is done in balanceOf, which is used to update the
-        *_balances mapping above, this function just has to do the clean-up work, and can be
-        *quite simple.
+        *This function is a new creation to help bridge the gap between the sablier
+        *functionality and the ERC20 standard.
+        *Since the "heavy lifting" is done in balanceOf, which is used to update the
+        *_balances mapping in _beforeTokenTransfer, this function just has to do the
+        *clean-up work, and can be quite simple.
         */
 
        function _updateRemainingBalance(uint streamId) internal {
-         Stream memory stream = streams[streamId];
-         uint delta = deltaOf(streamId);
-         uint streamedBalance = delta.mul(stream.ratePerSecond);
-         stream.remainingBalance = stream.deposit.sub(streamedBalance);
-         //kill it if done
-         if (stream.remainingBalance == 0){
-            delete streamSenders[stream.sender];
-            delete streamRecievers[stream.recipient];
-            delete streams[streamId];
-          }
 
+         if(streams[streamId].isEntity){
+           Stream memory stream = streams[streamId];
+           uint delta = deltaOf(streamId);
+           uint streamedBalance = delta.mul(stream.ratePerSecond);
+           stream.remainingBalance = stream.deposit.sub(streamedBalance);
+           //kill it if done
+           if (stream.remainingBalance == 0){
+             delete streamSenders[stream.sender];
+             delete streamRecievers[stream.recipient];
+             delete streams[streamId];
+           }
          }
-
-
-
-
-
-
-
-
-
-
-
+        }
 
 
 /*
@@ -259,6 +234,18 @@ function createStream(address recipient, uint256 deposit, uint256 duration)
 
         /* This condition avoids dealing with remainders */
         require(deposit % duration == 0, "deposit not multiple of time delta");
+
+        /*
+        *unique senders and recievers(each address can have only one sender stream and one reciever
+        *stream) simplifies much of the other logic. If it is necessary for each address to have multiple
+        *streams then a workaround would be to change the streamSenders and streamRecievers mappings
+        *to map an array to each address, and iterate through these in the balanceOf and _beforeTokenTransfer
+        *functions as necessary. the 0x0 address can recieve multiple streams.
+        */
+        _updateRemainingBalance(streamSenders[msg.sender]);
+        _updateRemainingBalance(streamRecievers[recipient]);
+        require(streamSenders[msg.sender] == 0, "Only allowed to send one stream at a time");
+        require(streamRecievers[recipient] == 0 || recipient == address(0), "Can only recieve one stream at a time");
 
         uint ratePerSecond = deposit.div(duration);
         uint stopTime = block.timestamp.add(duration);
