@@ -112,7 +112,7 @@ describe("SBTToken", function() {
       1000
     );
     const stream = await token.getStream(2);
-   console.log(stream);
+   //console.log(stream);
    // console.log(await recipient.getAddress());
     assert(stream);
      })
@@ -217,6 +217,30 @@ describe("SBTToken", function() {
           }
           assert(ex); // asserts that ex is truthy, otherwise this fails
           })
+
+  it('should create second stream from second sender after waiting for the stream to complete', async() => {
+
+    await hre.network.provider.request({
+      method: "evm_increaseTime",
+      params: [2]
+    });
+     await hre.network.provider.request({
+       method: "evm_mine",
+       params: []
+       });
+
+    recipient = ethers.provider.getSigner(3);
+    deployer = ethers.provider.getSigner(2);
+    const tx = await token.createStream(
+      recipient.getAddress(),
+      ethers.utils.parseEther("10"),
+      1000
+    );
+    const stream = await token.getStream(2);
+   //console.log(stream);
+   // console.log(await recipient.getAddress());
+    assert(stream);
+     })
 
   })
 
