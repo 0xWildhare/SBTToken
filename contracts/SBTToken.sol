@@ -247,6 +247,11 @@ function createStream(address recipient, uint256 deposit, uint256 duration)
         require(streamSenders[msg.sender] == 0, "Only allowed to send one stream at a time");
         require(streamRecievers[recipient] == 0 || recipient == address(0), "Can only recieve one stream at a time");
 
+        /*
+        *stream sender must have funds available to create stream.
+        */
+        require(_balances[msg.sender] >= deposit, "not enough balance to cover deposit" );
+
         uint ratePerSecond = deposit.div(duration);
         uint stopTime = block.timestamp.add(duration);
 
@@ -302,7 +307,7 @@ function getStream(uint256 streamId)
 
 
     /*
-    *The following functions come from Sablier.sol
+    *This function is copied directly from Sablier.sol
     */
 
     /**

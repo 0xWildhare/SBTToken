@@ -218,29 +218,25 @@ describe("SBTToken", function() {
           assert(ex); // asserts that ex is truthy, otherwise this fails
           })
 
-  it('should create second stream from second sender after waiting for the stream to complete', async() => {
-
-    await hre.network.provider.request({
-      method: "evm_increaseTime",
-      params: [2]
-    });
-     await hre.network.provider.request({
-       method: "evm_mine",
-       params: []
-       });
+  it('should not create a stream for more than the avaliable balance', async() => {
 
     recipient = ethers.provider.getSigner(3);
     deployer = ethers.provider.getSigner(2);
-    const tx = await token.createStream(
-      recipient.getAddress(),
-      ethers.utils.parseEther("10"),
-      1000
-    );
-    const stream = await token.getStream(2);
-   //console.log(stream);
-   // console.log(await recipient.getAddress());
-    assert(stream);
-     })
+    let ex;
+    try {
+      const tx = await token.createStream(
+        recipient.getAddress(),
+        ethers.utils.parseEther("10000"),
+        1000
+      );
+      
+    }
+    catch(_ex) {
+      ex = _ex;
+      }
+      assert(ex); // asserts that ex is truthy, otherwise this fails
+      })
+
 
   })
 
