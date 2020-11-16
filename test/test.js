@@ -80,23 +80,47 @@ describe("SBTToken", function() {
       assert(ex); // asserts that ex is truthy, otherwise this fails
    })
 
- it('after creating 2 streams, 2nd stream should exist', async() => {
+ it('should not be able to create second stream from same address', async() => {
      recipient = ethers.provider.getSigner(3);
-     const tx = await token.createStream(
-       recipient.getAddress(),
-       ethers.utils.parseEther("10"),
-       1000
-     );
-     const stream = await token.getStream(2);
-    // console.log(stream);
-    // console.log(await recipient.getAddress());
-     assert(stream);
+
+     let ex;
+     try {
+       const tx = await token.createStream(
+         recipient.getAddress(),
+         ethers.utils.parseEther("10"),
+         1000
+       );
+     }
+     catch(_ex) {
+       ex = _ex;
+     }
+     assert(ex); // asserts that ex is truthy, otherwise this fails
+
       })
+
+  it('should create second stream from second sender', async() => {
+    recipient = ethers.provider.getSigner(2);
+    await token.transfer(
+      recipient.getAddress(),
+      ethers.utils.parseEther("10")
+    );
+    recipient = ethers.provider.getSigner(3);
+    deployer = ethers.provider.getSigner(2);
+    const tx = await token.createStream(
+      recipient.getAddress(),
+      ethers.utils.parseEther("10"),
+      1000
+    );
+    const stream = await token.getStream(2);
+   console.log(stream);
+   // console.log(await recipient.getAddress());
+    assert(stream);
+     })
 
  it('should return deposit of 0 immediately', async() => {
    const balance = await token.balanceOf(recipient.getAddress());
    const deployerBalance = await token.balanceOf(deployer.getAddress());
-   console.log(deployerBalance.toString());
+   //console.log(deployerBalance.toString());
    assert.equal(
      balance.toString(),
      ethers.utils.parseEther("0").toString()
