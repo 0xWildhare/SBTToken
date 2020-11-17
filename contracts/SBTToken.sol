@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/GSN/Context.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
   *this implementation of the ERC20 standard requires modification to stopTime
@@ -18,7 +18,7 @@ import "@openzeppelin/contracts/utils/Address.sol";
   */
 
 
-contract SBTToken is Context, IERC20 {
+contract SBTToken is Context, IERC20, ReentrancyGuard {
   /*
   *This section is unaltered from ERC20.
   */
@@ -213,10 +213,7 @@ mapping(uint256 => Stream) private streams;
               - allows tokens to be streamed to this contracts
               - automatically starts stream at current block timestamp
 
-  *TODO: senders and rvievers should be unique (one address cannot send
-  multiple Streams; one address cannot recieve multiple streams [with the exception of 0x0]
-  this is for simplicity of the balanceOf and transfer functions - otherwise, these
-  will have to be modified to look at these)
+
 
 
 */
@@ -224,6 +221,7 @@ event StreamCreated(uint streamId);
 
 function createStream(address recipient, uint256 deposit, uint256 duration)
     public
+    nonReentrant
     returns (uint256)
 {
 
