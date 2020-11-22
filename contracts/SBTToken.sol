@@ -3,10 +3,11 @@
 pragma solidity ^0.6.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/GSN/Context.sol";
+//import "@openzeppelin/contracts/GSN/Context.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
   *this implementation of the ERC20 standard requires modification to stopTime
@@ -18,7 +19,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
   */
 
 
-contract SBTToken is Context, IERC20, ReentrancyGuard {
+contract SBTToken is IERC20, ReentrancyGuard, Ownable {
   /*
   *This section is unaltered from ERC20.
   */
@@ -84,6 +85,11 @@ mapping(uint256 => Stream) private streams;
     constructor(uint256 initialSupply) public {
         _mint(msg.sender, initialSupply); //Mints initial supply to deployer
         nextStreamId = 1; //from Sablier
+
+    }
+
+    function mint(uint amount) public onlyOwner {
+      _mint(msg.sender, amount);
     }
 
 /*
