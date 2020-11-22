@@ -167,7 +167,7 @@ describe("SBTToken", function() {
 /* this test is not working properly because the awaits before the test case
   *cause the block timestamp to advance, ending the first stream.
   *this will be easy to test on test net.
-  
+
   it('should create second stream from second sender', async() => {
     recipient = ethers.provider.getSigner(2);
     await token.transfer(
@@ -365,6 +365,32 @@ describe("SBTToken", function() {
           );
       });
 
+      it("should be able to cancel stream", async () => {
+
+        await token.cancelStream(1);
+        let ex;
+        try {
+          await token.getStream(1);
+        }
+        catch(_ex) {
+          ex = _ex;
+        }
+        assert(ex);
+      })
+
+      it("should not allow someone else to cancel the Stream", async () => {
+        let someoneElse = await ethers.provider.getSigner(1);
+        let ex;
+        try {
+          await token.connect(someoneElse).cancelStream(1);
+        }
+        catch(_ex) {
+          ex = _ex;
+        }
+        //console.log(ex);
+        assert(ex);
+
+      })
 
 
   })

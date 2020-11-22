@@ -174,8 +174,6 @@ mapping(uint256 => Stream) private streams;
         *_balances mapping in _beforeTokenTransfer, this function just has to do the
         *clean-up work, and can be quite simple.
         */
-
-
         function updateStream(uint streamId) public {
             require(streams[streamId].isEntity, "Not an active stream.");
             Stream memory stream = streams[streamId];
@@ -191,6 +189,22 @@ mapping(uint256 => Stream) private streams;
               delete streamRecievers[stream.recipient];
               delete streams[streamId];
             }
+        }
+
+        /*
+          * this function can be used to cancel the stream - this will most likely
+          * be limited to the DAO, the stream sender and the stream reciever.
+          */
+        function cancelStream(uint _streamId) public {
+          address owner = owner();
+          Stream memory stream = streams[_streamId];
+          address sender = stream.sender;
+          address recipient = stream.recipient;
+          require(msg.sender == owner || msg.sender == sender || msg.sender == recipient, "not authorized to cancel this stream");
+          updateStream(_streamId);
+          delete streamSenders[stream.sender];
+          delete streamRecievers[stream.recipient];
+          delete streams[_streamId];
         }
 
 
