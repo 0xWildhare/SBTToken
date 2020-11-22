@@ -229,13 +229,67 @@ describe("SBTToken", function() {
         ethers.utils.parseEther("10000"),
         1000
       );
-      
+
     }
     catch(_ex) {
       ex = _ex;
       }
       assert(ex); // asserts that ex is truthy, otherwise this fails
       })
+
+
+  it('Sender should not haved streamed tokens after stream ends', async() => {
+
+    await hre.network.provider.request({
+      method: "evm_increaseTime",
+      params: [2]
+    });
+    await hre.network.provider.request({
+      method: "evm_mine",
+      params: []
+    });
+/*
+    recipient = ethers.provider.getSigner(1);
+    await token.transfer(
+      recipient.getAddress(),
+      ethers.utils.parseEther("1")
+    );
+*/
+    const balance = await token.balanceOf(recipient.getAddress());
+    const deployerBalance = await token.balanceOf(deployer.getAddress());
+    //console.log(deployerBalance.toString());
+       assert.equal(
+         deployerBalance.toString(),
+         ethers.utils.parseEther("976").toString()
+         );
+       });
+
+
+   it('Sender should not haved streamed tokens after stream ends and new stream starts', async() => {
+     await hre.network.provider.request({
+       method: "evm_increaseTime",
+       params: [3]
+     });
+     await hre.network.provider.request({
+       method: "evm_mine",
+       params: []
+     });
+
+     await token.createStream(
+       recipient.getAddress(),
+       ethers.utils.parseEther("10"),
+       1000
+     );
+
+     const balance = await token.balanceOf(recipient.getAddress());
+     const deployerBalance = await token.balanceOf(deployer.getAddress());
+     //console.log(deployerBalance.toString());
+        assert.equal(
+          deployerBalance.toString(),
+          ethers.utils.parseEther("976").toString()
+          );
+      });
+
 
 
   })

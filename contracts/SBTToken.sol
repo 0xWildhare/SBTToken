@@ -95,45 +95,41 @@ mapping(uint256 => Stream) private streams;
 
         //if there is a send stream for account, modify accordingly (only handles 1 send stream per account)
         if(streamSenders[account] != 0) {
-          uint sendId = streamSenders[account];
-          Stream memory streamS = streams[sendId];
-          uint deltaS = deltaOf(sendId);
-          uint sentBalance = deltaS.mul(streamS.ratePerSecond); //this is total amount sent, not necessarily transacted yet
-
-          /*
-          * If the stream `balance` does not equal `deposit`, it means there have been withdrawals.
-          * We have to subtract the total amount withdrawn from the amount of money that has been
-          * streamed until now.
-          */
-
-            if (streamS.deposit > streamS.remainingBalance) {
-              uint totalSent = streamS.deposit.sub(streamS.remainingBalance);
-              sentBalance = sentBalance.sub(totalSent);
-            }
-            calculatedBalance = calculatedBalance.sub(sentBalance);
+          uint sentBalance = _streamSentBalance(streamSenders[account]);
+          calculatedBalance = calculatedBalance.sub(sentBalance);
         }
+
         //if there is a recieve stream for account, modify accordingly
         if(streamRecievers[account] != 0) {
-          uint recieveId = streamRecievers[account];
-          Stream memory streamR = streams[recieveId];
-          uint deltaR = deltaOf(recieveId);
-          uint recievedBalance = deltaR.mul(streamR.ratePerSecond);
-
-          /*
-          * If the stream `balance` does not equal `deposit`, it means there have been withdrawals.
-          * We have to subtract the total amount withdrawn from the amount of money that has been
-          * streamed until now.
-          */
-
-            if (streamR.deposit > streamR.remainingBalance) {
-              uint totalRecieved = streamR.deposit.sub(streamR.remainingBalance);
-              recievedBalance = recievedBalance.sub(totalRecieved);
-            }
-            calculatedBalance = calculatedBalance.add(recievedBalance);
+          uint recievedBalance = _streamSentBalance(streamRecievers[account]);
+          calculatedBalance = calculatedBalance.add(recievedBalance);
         }
+
+
         return calculatedBalance;
 
       }
+
+
+      //this function cleans up redundant code in  the balanceOf function
+      function _streamSentBalance(uint streamId) internal view returns(uint) {
+        Stream memory stream = streams[streamId];
+        uint delta = deltaOf(streamId);
+        uint sentBalance = delta.mul(stream.ratePerSecond);
+
+        /*
+        * If the stream `balance` does not equal `deposit`, it means there have been withdrawals.
+        * We have to subtract the total amount withdrawn from the amount of money that has been
+        * streamed until now.
+        */
+          if (stream.deposit > stream.remainingBalance) {
+            uint totalSent = stream.deposit.sub(stream.remainingBalance);
+            sentBalance = sentBalance.sub(totalSent);
+          }
+        return(sentBalance);
+      }
+
+
 
       /**
        * @dev Hook that is called before any transfer of tokens. This includes
@@ -152,30 +148,15 @@ mapping(uint256 => Stream) private streams;
 
       function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual {
 
-        //get new balances (!shoes)
-        uint balanceFrom = balanceOf(from);
-        uint balanceTo = balanceOf(to);
-
-        //fins the streamId's that need to be updated
-        uint ssf = streamSenders[from];
-        uint srf = streamRecievers[from];
-        uint sst = streamSenders[to];
-        uint srt = streamRecievers[to];
-
-        //update remainingBalance on streams
-        if(ssf != 0) _updateRemainingBalance(ssf);
-        if(srf != 0) _updateRemainingBalance(srf);
-        if(sst != 0) _updateRemainingBalance(sst);
-        if(srt != 0) _updateRemainingBalance(srt);
-
-        //update balances from streams
-        _balances[from] = balanceFrom;
-        _balances[to] = balanceTo;
+        if(streams[streamSenders[from]].isEntity) updateStream(streamSenders[from]);
+        if(streams[streamRecievers[from]].isEntity) updateStream(streamRecievers[from]);
+        if(streams[streamSenders[to]].isEntity) updateStream(streamSenders[to]);
+        if(streams[streamRecievers[to]].isEntity)updateStream(streamRecievers[to]);
 
         //require sender has enough to cover remaining balance after sending amount.
-        //unless its the mint function, and coming from 0
-        uint sendersStreamRemainingBalance = streams[ssf].remainingBalance;
-        uint sendersAvailableBalance = balanceFrom.sub(sendersStreamRemainingBalance);
+        //unless its the mint function, thus coming from 0
+        uint sendersStreamRemainingBalance = streams[streamSenders[from]].remainingBalance;
+        uint sendersAvailableBalance = _balances[from].sub(sendersStreamRemainingBalance);
         if(from != address(0)) require(sendersAvailableBalance >= amount, "not enough money");
 
        }
@@ -188,20 +169,22 @@ mapping(uint256 => Stream) private streams;
         *clean-up work, and can be quite simple.
         */
 
-       function _updateRemainingBalance(uint streamId) internal {
 
-         if(streams[streamId].isEntity){
-           Stream memory stream = streams[streamId];
-           uint delta = deltaOf(streamId);
-           uint streamedBalance = delta.mul(stream.ratePerSecond);
-           stream.remainingBalance = stream.deposit.sub(streamedBalance);
-           //kill it if done
-           if (stream.remainingBalance == 0){
-             delete streamSenders[stream.sender];
-             delete streamRecievers[stream.recipient];
-             delete streams[streamId];
-           }
-         }
+        function updateStream(uint streamId) public {
+            require(streams[streamId].isEntity, "Not an active stream.");
+            Stream memory stream = streams[streamId];
+            uint senderBalance = balanceOf(stream.sender);
+            uint recipientBalance = balanceOf(stream.recipient);
+            uint delta = deltaOf(streamId);
+            uint streamedBalance = delta.mul(stream.ratePerSecond);
+            stream.remainingBalance = stream.deposit.sub(streamedBalance);
+            _balances[stream.sender] = senderBalance;
+            _balances[stream.recipient] = recipientBalance;
+            if (stream.remainingBalance == 0){
+              delete streamSenders[stream.sender];
+              delete streamRecievers[stream.recipient];
+              delete streams[streamId];
+            }
         }
 
 
@@ -240,8 +223,10 @@ function createStream(address recipient, uint256 deposit, uint256 duration)
         *to map an array to each address, and iterate through these in the balanceOf and _beforeTokenTransfer
         *functions as necessary. the 0x0 address can recieve multiple streams.
         */
-        _updateRemainingBalance(streamSenders[msg.sender]);
-        _updateRemainingBalance(streamRecievers[recipient]);
+
+
+        _beforeTokenTransfer(msg.sender, recipient, deposit);
+
         require(streamSenders[msg.sender] == 0, "Only allowed to send one stream at a time");
         require(streamRecievers[recipient] == 0 || recipient == address(0), "Can only recieve one stream at a time");
 
