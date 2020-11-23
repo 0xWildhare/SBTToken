@@ -94,6 +94,12 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
       //global stream time set by DAO
       uint globalStreamTime = 2500000; //approx 29 days
 
+      /* global stream time modifier (pay for shorter times)
+        * number is in 1/1000ths i.e. 1000 = 1, 800 = 0.8x
+        * only affects to DAO and 0x0 stream times
+        */
+      mapping(address => uint) private streamTimeModifier;
+
 /*
   ***CONTRACT LOGIC STARTS HERE***
   */
@@ -116,6 +122,13 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
       require(newTime != 0, "time cannot be 0");
       globalStreamTime = newTime;
     }
+
+    /*
+      *changes the stream time modifier for a specific address
+      */
+      function changeStreamTimeModifier(address _address, uint _modifier) public onlyOwner{
+        streamTimeModifier[_address] = _modifier;
+      }
 
 /*
   ****the following functions (balanceOf, _beforeTokenTransfer) are heavily modified from ERC20***
@@ -146,6 +159,12 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
         if(to0x0Streams[account] != 0) {
           uint sentTo0x0Balance = _getStreamSentBalance(to0x0Streams[account]);
           calculatedBalance = calculatedBalance.sub(sentTo0x0Balance);
+        }
+
+        //if there is a stream to DAO for account, modify accordingly
+        if(fromDAOStreams[account] != 0) {
+          uint sentfromDAOBalance = _getStreamSentBalance(fromDAOStreams[account]);
+          calculatedBalance = calculatedBalance.add(sentfromDAOBalance);
         }
 
         return calculatedBalance;
@@ -216,7 +235,9 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
         if(streams[to0x0Streams[from]].isEntity) updateStream(to0x0Streams[from]);
         if(streams[to0x0Streams[to]].isEntity) updateStream(to0x0Streams[to]); //don't know that it is necessary to update all of "to's" streams.
 
-
+        //same for streams from DAO
+        if(streams[fromDAOStreams[from]].isEntity) updateStream(fromDAOStreams[from]);
+        if(streams[fromDAOStreams[to]].isEntity) updateStream(fromDAOStreams[to]); //don't know that it is necessary to update all of "to's" streams.
 
        }
 
@@ -374,9 +395,13 @@ event StreamToDAOCreated(uint streamId);
 function createStreamToDAO(uint deposit) public returns(uint){
   require(deposit > 0, "deposit is zero");
 
+  uint _globalStreamTime = globalStreamTime;
+  if(streamTimeModifier[msg.sender] != 0) {
+    _globalStreamTime = (globalStreamTime.div(1000)).mul(streamTimeModifier[msg.sender]);
+  }
 
-  require(deposit >= globalStreamTime, "deposit smaller than time delta");
-  require(deposit % globalStreamTime == 0, "deposit must be divisible by stream time");
+  require(deposit >= _globalStreamTime, "deposit smaller than time delta");
+  require(deposit % _globalStreamTime == 0, "deposit must be divisible by stream time");
 
 
   //not sure how the _beforeTokenTransfer function should be called. using address(0) as a placeholder.
@@ -384,8 +409,8 @@ function createStreamToDAO(uint deposit) public returns(uint){
   require(toDAOStreams[msg.sender] == 0, "sender has existing stream");
 
 
-  uint stopTime = block.timestamp.add(globalStreamTime);
-  uint ratePerSecond = deposit.div(globalStreamTime);
+  uint stopTime = block.timestamp.add(_globalStreamTime);
+  uint ratePerSecond = deposit.div(_globalStreamTime);
 
   /* Create and store the stream object. */
   uint256 streamId = nextStreamId;
@@ -412,8 +437,13 @@ event StreamTo0x0Created(uint streamId);
 function createStreamTo0x0(uint deposit) public returns(uint){
   require(deposit > 0, "deposit is zero");
 
-  require(deposit >= globalStreamTime, "deposit smaller than time delta");
-  require(deposit % globalStreamTime == 0, "deposit must be divisible by stream time");
+  uint _globalStreamTime = globalStreamTime;
+  if(streamTimeModifier[msg.sender] != 0) {
+    _globalStreamTime = (globalStreamTime.div(1000)).mul(streamTimeModifier[msg.sender]);
+  }
+
+  require(deposit >= _globalStreamTime, "deposit smaller than time delta");
+  require(deposit % _globalStreamTime == 0, "deposit must be divisible by stream time");
 
 
   //not sure how the _beforeTokenTransfer function should be called. using address(0) as a placeholder.
@@ -422,8 +452,8 @@ function createStreamTo0x0(uint deposit) public returns(uint){
 
 
 
-  uint stopTime = block.timestamp.add(globalStreamTime);
-  uint ratePerSecond = deposit.div(globalStreamTime);
+  uint stopTime = block.timestamp.add(_globalStreamTime);
+  uint ratePerSecond = deposit.div(_globalStreamTime);
 
   /* Create and store the stream object. */
   uint256 streamId = nextStreamId;
@@ -451,22 +481,22 @@ function createStreamFromDAO(address recipient, uint amount, uint duration) publ
   require(amount > 0, "deposit is zero");
 
 
-  require(deposit >= duration, "deposit smaller than duration");
-  require(deposit % duration == 0, "deposit must be divisible by duration");
+  require(amount >= duration, "deposit smaller than duration");
+  require(amount % duration == 0, "deposit must be divisible by duration");
 
 
   //not sure how the _beforeTokenTransfer function should be called. using address(0) as a placeholder.
-  _beforeTokenTransfer(address(0), recipient, deposit);
+  _beforeTokenTransfer(address(0), recipient, amount);
   require(fromDAOStreams[recipient] == 0, "recipient has existing stream from DAO");
 
 
-  uint stopTime = block.timestamp.add(duration);
-  uint ratePerSecond = deposit.div(duration);
+  uint stopTime = block.timestamp.add(amount);
+  uint ratePerSecond = amount.div(duration);
 
   /* Create and store the stream object. */
   uint256 streamId = nextStreamId;
   streams[streamId] = Stream({
-      remainingBalance: deposit,
+      remainingBalance: amount,
       deposit: amount,
       isEntity: true,
       ratePerSecond: ratePerSecond,
@@ -476,7 +506,7 @@ function createStreamFromDAO(address recipient, uint amount, uint duration) publ
       stopTime: stopTime
       });
 
-      fromDAOStreams[msg.sender] = streamId;
+      fromDAOStreams[recipient] = streamId;
 
       nextStreamId = nextStreamId.add(1);
       emit StreamFromDAOCreated(streamId);

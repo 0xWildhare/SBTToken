@@ -661,7 +661,7 @@ describe("SBTToken", function() {
         it("should exist", async () => {
 
           const stream = await token.getStream(1);
-          //console.log(await ethers.provider.getSigner(0).getAddress());
+          //console.log(await caller.getAddress());
           //console.log(stream);
           assert(stream);
 
@@ -707,10 +707,103 @@ describe("SBTToken", function() {
                  ethers.utils.parseEther("500").toString()
                );
              });
+        })
 
 
+     describe('A stream from DAO', () => {
+
+       let caller;
+       let stringId;
+
+       beforeEach(async () => {
+         caller = ethers.provider.getSigner(1);
+
+         await token.transfer(
+           caller.getAddress(),
+           ethers.utils.parseEther("1000")
+         );
+
+         //address recipient, uint amount, uint duration
+         const tx = await token.createStreamFromDAO(caller.getAddress(), ethers.utils.parseEther("100"), 1000);
+
+         //const reciept = await tx.wait();
+
+       //  console.log(reciept);
+
+         });
+
+         it("should exist", async () => {
+
+           const stream = await token.getStream(1);
+           //console.log(await caller.getAddress());
+          // console.log(stream);
+           assert(stream);
+
+         })
+
+         it('should allow a normal stream to be sent', async() => {
+
+             recipient = ethers.provider.getSigner(3);
+
+               const tx = await token.connect(caller).createStream(
+                 recipient.getAddress(),
+                 ethers.utils.parseEther("10"),
+                 1000
+               );
+
+             const stream = await token.getStream(2);
+             assert(stream);
+              })
 
 
-     })
+       it('should allow a transfer mid-stream', async() => {
+
+          await hre.network.provider.request({
+            method: "evm_increaseTime",
+            params: [1]
+          });
+          await hre.network.provider.request({
+             method: "evm_mine",
+             params: []
+           });
+
+          //const deployerBalance = await token.balanceOf(deployer.getAddress());
+           //console.log(deployerBalance.toString());
+         recipient = ethers.provider.getSigner(4);
+           await token.connect(caller).transfer(
+               recipient.getAddress(),
+               ethers.utils.parseEther("500")
+             );
+           const balance = await token.balanceOf(recipient.getAddress());
+
+                assert.equal(
+                  balance.toString(),
+                  ethers.utils.parseEther("500").toString()
+                );
+              });
+
+      it('should mint tokens to recipient', async() => {
+
+         await hre.network.provider.request({
+           method: "evm_increaseTime",
+           params: [1000]
+         });
+         await hre.network.provider.request({
+            method: "evm_mine",
+            params: []
+          });
+
+
+          const balance = await token.balanceOf(caller.getAddress());
+
+               assert.equal(
+                 balance.toString(),
+                 ethers.utils.parseEther("1100").toString()
+               );
+         });
+
+
+        })
+
 
 });
