@@ -164,31 +164,7 @@ describe("SBTToken", function() {
 
       })
 
-/* this test is not working properly because the awaits before the test case
-  *cause the block timestamp to advance, ending the first stream.
-  *this will be easy to test on test net.
 
-  it('should create second stream from second sender', async() => {
-    recipient = ethers.provider.getSigner(2);
-    await token.transfer(
-      recipient.getAddress(),
-      ethers.utils.parseEther("10")
-    );
-    recipient = ethers.provider.getSigner(3);
-    deployer = ethers.provider.getSigner(2);
-    const tx = await token.connect(deployer).createStream(
-      recipient.getAddress(),
-      ethers.utils.parseEther("10"),
-      1000
-    );
-    const stream = await token.getStream(1);
-    //console.log(await ethers.provider.getSigner(0).getAddress());
-  //  console.log(await ethers.provider.getSigner(2).getAddress());
-    //console.log(stream);
-   // console.log(await recipient.getAddress());
-    assert(stream);
-     })
-*/
  it('should return deposit of 0 immediately', async() => {
    const balance = await token.balanceOf(recipient.getAddress());
    const deployerBalance = await token.balanceOf(deployer.getAddress());
@@ -378,6 +354,197 @@ describe("SBTToken", function() {
         assert(ex);
       })
 
+
+
+  })
+
+
+  describe('A longer timeframe stream', async () => {
+    let recipient;
+    let stringId;
+
+    beforeEach(async () => {
+      recipient = await ethers.provider.getSigner(2);
+      const tx = await token.createStream(
+        recipient.getAddress(),
+        ethers.utils.parseEther("30"),
+        200
+      );
+
+      const reciept = await tx.wait();
+
+      //console.log(reciept);
+
+      });
+
+
+
+  it('should create second stream from second sender', async() => {
+    let deployer = await ethers.provider.getSigner(0);
+    recipient = ethers.provider.getSigner(2);
+    await token.transfer(
+      recipient.getAddress(),
+      ethers.utils.parseEther("10")
+    );
+    recipient = ethers.provider.getSigner(3);
+    deployer = ethers.provider.getSigner(2);
+    const tx = await token.connect(deployer).createStream(
+      recipient.getAddress(),
+      ethers.utils.parseEther("10"),
+      1000
+    );
+    const stream = await token.getStream(1);
+    //console.log(await ethers.provider.getSigner(0).getAddress());
+  //  console.log(await ethers.provider.getSigner(2).getAddress());
+    //console.log(stream);
+   // console.log(await recipient.getAddress());
+    assert(stream);
+     })
+
+
+   it('should allow a transfer mid-stream', async() => {
+
+      await hre.network.provider.request({
+        method: "evm_increaseTime",
+        params: [100]
+      });
+      await hre.network.provider.request({
+         method: "evm_mine",
+         params: []
+       });
+
+      //const deployerBalance = await token.balanceOf(deployer.getAddress());
+      // console.log(deployerBalance.toString());
+
+       //const stream = await token.getStream(1);
+       //console.log(stream);
+
+       recipient = ethers.provider.getSigner(4);
+       await token.transfer(
+           recipient.getAddress(),
+           ethers.utils.parseEther("970")
+         );
+
+       const balance = await token.balanceOf(recipient.getAddress());
+
+
+            assert.equal(
+              balance.toString(),
+              ethers.utils.parseEther("970").toString()
+            );
+          });
+
+
+    it('should not allow a transfer to cut into remaining stream balance', async() => {
+
+       await hre.network.provider.request({
+         method: "evm_increaseTime",
+         params: [100]
+       });
+        await hre.network.provider.request({
+          method: "evm_mine",
+          params: []
+          });
+
+        recipient = ethers.provider.getSigner(4);
+        let ex;
+        try {
+          await token.transfer(
+            recipient.getAddress(),
+            ethers.utils.parseEther("975")
+          );
+        }
+        catch(_ex) {
+          ex = _ex;
+          }
+          assert(ex); // asserts that ex is truthy, otherwise this fails
+          })
+
+  it('should not create a stream for more than the avaliable balance', async() => {
+
+    recipient = ethers.provider.getSigner(3);
+
+    let ex;
+    try {
+      const tx = await token.createStream(
+        recipient.getAddress(),
+        ethers.utils.parseEther("10000"),
+        1000
+      );
+
+    }
+    catch(_ex) {
+      ex = _ex;
+      }
+      assert(ex); // asserts that ex is truthy, otherwise this fails
+      })
+
+
+  it('Sender should not haved streamed tokens after stream ends', async() => {
+
+    await hre.network.provider.request({
+      method: "evm_increaseTime",
+      params: [205]
+    });
+    await hre.network.provider.request({
+      method: "evm_mine",
+      params: []
+    });
+  /*
+    recipient = ethers.provider.getSigner(1);
+    await token.transfer(
+      recipient.getAddress(),
+      ethers.utils.parseEther("1")
+    );
+  */
+    const balance = await token.balanceOf(recipient.getAddress());
+    const deployerBalance = await token.balanceOf(deployer.getAddress());
+    //console.log(deployerBalance.toString());
+       assert.equal(
+         deployerBalance.toString(),
+         ethers.utils.parseEther("970").toString()
+         );
+       });
+
+
+   it('Sender should not haved streamed tokens after stream ends and new stream starts', async() => {
+     await hre.network.provider.request({
+       method: "evm_increaseTime",
+       params: [205]
+     });
+     await hre.network.provider.request({
+       method: "evm_mine",
+       params: []
+     });
+
+     await token.createStream(
+       recipient.getAddress(),
+       ethers.utils.parseEther("10"),
+       1000
+     );
+
+     const balance = await token.balanceOf(recipient.getAddress());
+     const deployerBalance = await token.balanceOf(deployer.getAddress());
+     //console.log(deployerBalance.toString());
+        assert.equal(
+          deployerBalance.toString(),
+          ethers.utils.parseEther("970").toString()
+          );
+      });
+
+      it("should be able to cancel stream", async () => {
+
+        await token.cancelStream(1);
+        let ex;
+        try {
+          await token.getStream(1);
+        }
+        catch(_ex) {
+          ex = _ex;
+        }
+        assert(ex);
+      })
+
       it("should not allow someone else to cancel the Stream", async () => {
         let someoneElse = await ethers.provider.getSigner(1);
         let ex;
@@ -394,6 +561,7 @@ describe("SBTToken", function() {
 
 
   })
+
 
   describe('A stream to DAO', () => {
 

@@ -184,7 +184,20 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
        * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
            */
 
+
       function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual {
+
+        //require sender has enough to cover remaining balance after sending amount.
+        //unless its the mint function, thus coming from 0
+        uint sendersStreamRemainingBalance =
+        streams[streamSenders[from]].remainingBalance.add(  //person to person stream
+          streams[toDAOStreams[from]].remainingBalance.add( //to DAO stream
+            streams[to0x0Streams[from]].remainingBalance    //to 0x0 stream
+            ));
+
+        uint sendersAvailableBalance = _balances[from].sub(sendersStreamRemainingBalance);
+        if(from != address(0)) require(sendersAvailableBalance >= amount, "not enough money");
+        
 
         if(streams[streamSenders[from]].isEntity) updateStream(streamSenders[from]);
         if(streams[streamRecievers[from]].isEntity) updateStream(streamRecievers[from]);
@@ -199,16 +212,7 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
         if(streams[to0x0Streams[from]].isEntity) updateStream(to0x0Streams[from]);
         if(streams[to0x0Streams[to]].isEntity) updateStream(to0x0Streams[to]); //don't know that it is necessary to update all of "to's" streams.
 
-        //require sender has enough to cover remaining balance after sending amount.
-        //unless its the mint function, thus coming from 0
-        uint sendersStreamRemainingBalance =
-        streams[streamSenders[from]].remainingBalance.add(  //person to person stream
-          streams[toDAOStreams[from]].remainingBalance.add( //to DAO stream
-            streams[to0x0Streams[from]].remainingBalance    //to 0x0 stream
-            ));
 
-        uint sendersAvailableBalance = _balances[from].sub(sendersStreamRemainingBalance);
-        if(from != address(0)) require(sendersAvailableBalance >= amount, "not enough money");
 
        }
 
