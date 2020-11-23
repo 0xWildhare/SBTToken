@@ -87,6 +87,10 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
       //identifiable by sender address
       mapping(address => uint256) private to0x0Streams;
 
+      //for streams from DAO
+      //identifiable by recipient address
+      mapping(address => uint256) private fromDAOStreams;
+
       //global stream time set by DAO
       uint globalStreamTime = 2500000; //approx 29 days
 
@@ -197,7 +201,7 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
 
         uint sendersAvailableBalance = _balances[from].sub(sendersStreamRemainingBalance);
         if(from != address(0)) require(sendersAvailableBalance >= amount, "not enough money");
-        
+
 
         if(streams[streamSenders[from]].isEntity) updateStream(streamSenders[from]);
         if(streams[streamRecievers[from]].isEntity) updateStream(streamRecievers[from]);
@@ -369,7 +373,7 @@ event StreamToDAOCreated(uint streamId);
 
 function createStreamToDAO(uint deposit) public returns(uint){
   require(deposit > 0, "deposit is zero");
-  require(toDAOStreams[msg.sender] == 0, "sender has existing stream");
+
 
   require(deposit >= globalStreamTime, "deposit smaller than time delta");
   require(deposit % globalStreamTime == 0, "deposit must be divisible by stream time");
@@ -377,7 +381,7 @@ function createStreamToDAO(uint deposit) public returns(uint){
 
   //not sure how the _beforeTokenTransfer function should be called. using address(0) as a placeholder.
   _beforeTokenTransfer(msg.sender, address(0), deposit);
-  //TODO: add a way to check streams to/from DAO and to 0x
+  require(toDAOStreams[msg.sender] == 0, "sender has existing stream");
 
 
   uint stopTime = block.timestamp.add(globalStreamTime);
@@ -407,7 +411,6 @@ event StreamTo0x0Created(uint streamId);
 
 function createStreamTo0x0(uint deposit) public returns(uint){
   require(deposit > 0, "deposit is zero");
-  require(toDAOStreams[msg.sender] == 0, "sender has existing stream");
 
   require(deposit >= globalStreamTime, "deposit smaller than time delta");
   require(deposit % globalStreamTime == 0, "deposit must be divisible by stream time");
@@ -415,7 +418,8 @@ function createStreamTo0x0(uint deposit) public returns(uint){
 
   //not sure how the _beforeTokenTransfer function should be called. using address(0) as a placeholder.
   _beforeTokenTransfer(msg.sender, address(0), deposit);
-  //TODO: add a way to check streams to/from DAO and to 0x
+  require(toDAOStreams[msg.sender] == 0, "sender has existing stream");
+
 
 
   uint stopTime = block.timestamp.add(globalStreamTime);
@@ -440,6 +444,45 @@ function createStreamTo0x0(uint deposit) public returns(uint){
       emit StreamTo0x0Created(streamId);
       return(streamId);
 }
+
+event StreamFromDAOCreated(uint streamId);
+
+function createStreamFromDAO(address recipient, uint amount, uint duration) public onlyOwner returns(uint){
+  require(amount > 0, "deposit is zero");
+
+
+  require(deposit >= duration, "deposit smaller than duration");
+  require(deposit % duration == 0, "deposit must be divisible by duration");
+
+
+  //not sure how the _beforeTokenTransfer function should be called. using address(0) as a placeholder.
+  _beforeTokenTransfer(address(0), recipient, deposit);
+  require(fromDAOStreams[recipient] == 0, "recipient has existing stream from DAO");
+
+
+  uint stopTime = block.timestamp.add(duration);
+  uint ratePerSecond = deposit.div(duration);
+
+  /* Create and store the stream object. */
+  uint256 streamId = nextStreamId;
+  streams[streamId] = Stream({
+      remainingBalance: deposit,
+      deposit: amount,
+      isEntity: true,
+      ratePerSecond: ratePerSecond,
+      recipient: recipient,
+      sender: address(0),
+      startTime: block.timestamp,
+      stopTime: stopTime
+      });
+
+      fromDAOStreams[msg.sender] = streamId;
+
+      nextStreamId = nextStreamId.add(1);
+      emit StreamFromDAOCreated(streamId);
+      return(streamId);
+}
+
 
 
 
