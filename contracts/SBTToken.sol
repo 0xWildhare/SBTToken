@@ -92,7 +92,7 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
       mapping(address => uint256) private fromDAOStreams;
 
       //global stream time set by DAO
-      uint globalStreamTime = 2500000; //approx 29 days
+      uint public globalStreamTime = 2500000; //approx 29 days
 
       /* global stream time modifier (pay for shorter times)
         * number is in 1/1000ths i.e. 1000 = 1, 800 = 0.8x
@@ -107,8 +107,11 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
     constructor(uint256 initialSupply) public {
         _mint(msg.sender, initialSupply); //Mints initial supply to deployer
         nextStreamId = 1; //from Sablier
-
     }
+
+    /*
+      * onlyOwner functions
+      */
 
     function mint(uint amount) public onlyOwner {
       _mint(msg.sender, amount);
@@ -126,9 +129,15 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
     /*
       *changes the stream time modifier for a specific address
       */
-      function changeStreamTimeModifier(address _address, uint _modifier) public onlyOwner{
-        streamTimeModifier[_address] = _modifier;
-      }
+    function changeStreamTimeModifier(address _address, uint _modifier) public onlyOwner{
+      streamTimeModifier[_address] = _modifier;
+    }
+
+        function checkModifier(address _address) public view returns (uint) {
+          address owner = owner();
+          require(msg.sender == _address || msg.sender == owner, "not authorized to view");
+          return(streamTimeModifier[_address]);
+        }
 
 /*
   ****the following functions (balanceOf, _beforeTokenTransfer) are heavily modified from ERC20***
@@ -256,9 +265,15 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
             if(stream.sender == address(0)) _totalSupply = _totalSupply.add(streamedBalance);
             if(stream.recipient == address(0)) _totalSupply = _totalSupply.sub(streamedBalance);
             emit Transfer(stream.sender, stream.recipient, streamedBalance);
+
             if (stream.remainingBalance == 0){
-              delete streamSenders[stream.sender];
-              delete streamRecievers[stream.recipient];
+              if(fromDAOStreams[stream.recipient] == streamId) delete fromDAOStreams[stream.recipient];
+              else if (to0x0Streams[stream.sender] == streamId) delete to0x0Streams[stream.sender];
+              else if (toDAOStreams[stream.sender] == streamId) delete toDAOStreams[stream.sender];
+              else {
+                delete streamSenders[stream.sender];
+                delete streamRecievers[stream.recipient];
+              }
               delete streams[streamId];
             }
 
@@ -275,8 +290,14 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
           address recipient = stream.recipient;
           require(msg.sender == owner || msg.sender == sender || msg.sender == recipient, "not authorized to cancel this stream");
           updateStream(_streamId);
-          delete streamSenders[stream.sender];
-          delete streamRecievers[stream.recipient];
+
+          if(fromDAOStreams[stream.recipient] == _streamId) delete fromDAOStreams[stream.recipient];
+          else if (to0x0Streams[stream.sender] == _streamId) delete to0x0Streams[stream.sender];
+          else if (toDAOStreams[stream.sender] == _streamId) delete toDAOStreams[stream.sender];
+          else {
+            delete streamSenders[stream.sender];
+            delete streamRecievers[stream.recipient];
+          }
           delete streams[_streamId];
         }
 
@@ -378,9 +399,8 @@ function createStream(address recipient, uint256 deposit, uint256 duration)
             });
 
             streamSenders[msg.sender] = streamId;
-            if(recipient != address(0x00)) {
-              streamRecievers[recipient] = streamId;
-            }
+            streamRecievers[recipient] = streamId;
+
 
             nextStreamId = nextStreamId.add(1);
             emit StreamCreated(streamId);
