@@ -425,6 +425,22 @@ describe("SBTToken", function() {
 
       })
 
+      it('should allow a normal stream to be sent', async() => {
+
+          recipient = ethers.provider.getSigner(3);
+
+            const tx = await token.createStream(
+              recipient.getAddress(),
+              ethers.utils.parseEther("10"),
+              1000
+            );
+
+          const stream = await token.getStream(2);
+          assert(stream);
+           })
+
+
+
     })
 
     describe('A stream to 0x0', () => {
