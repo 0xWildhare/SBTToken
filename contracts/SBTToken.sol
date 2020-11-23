@@ -32,8 +32,8 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
 
   uint256 private _totalSupply;
 
-  string private _name = 'Slow Burn Token';
-  string private _symbol = 'SBT';
+  string private _name = 'Slow Burn Token v.2';
+  string private _symbol = 'SB2';
   uint8 private _decimals = 18;
 
 
@@ -210,16 +210,7 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
 
       function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual {
 
-        //require sender has enough to cover remaining balance after sending amount.
-        //unless its the mint function, thus coming from 0
-        uint sendersStreamRemainingBalance =
-        streams[streamSenders[from]].remainingBalance.add(  //person to person stream
-          streams[toDAOStreams[from]].remainingBalance.add( //to DAO stream
-            streams[to0x0Streams[from]].remainingBalance    //to 0x0 stream
-            ));
 
-        uint sendersAvailableBalance = _balances[from].sub(sendersStreamRemainingBalance);
-        if(from != address(0)) require(sendersAvailableBalance >= amount, "not enough money");
 
 
         if(streams[streamSenders[from]].isEntity) updateStream(streamSenders[from]);
@@ -239,30 +230,38 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
         if(streams[fromDAOStreams[from]].isEntity) updateStream(fromDAOStreams[from]);
         if(streams[fromDAOStreams[to]].isEntity) updateStream(fromDAOStreams[to]); //don't know that it is necessary to update all of "to's" streams.
 
+        //require sender has enough to cover remaining balance after sending amount.
+        //unless its the mint function, thus coming from 0
+        uint sendersStreamRemainingBalance =
+        streams[streamSenders[from]].remainingBalance.add(  //person to person stream
+          streams[toDAOStreams[from]].remainingBalance.add( //to DAO stream
+            streams[to0x0Streams[from]].remainingBalance    //to 0x0 stream
+            ));
+
+        uint sendersAvailableBalance = _balances[from].sub(sendersStreamRemainingBalance);
+        if(from != address(0)) require(sendersAvailableBalance >= amount, "not enough money");
        }
 
        /*
         *This function is a new creation to help bridge the gap between the sablier
         *functionality and the ERC20 standard.
-        *Since the "heavy lifting" is done in balanceOf, which is used to update the
-        *_balances mapping in _beforeTokenTransfer, this function just has to do the
-        *clean-up work, and can be quite simple.
         */
         function updateStream(uint streamId) public {
             require(streams[streamId].isEntity, "Not an active stream."); //this line should be redundant.
-            Stream memory stream = streams[streamId];
-            uint senderBalance = balanceOf(stream.sender);
-            uint recipientBalance = balanceOf(stream.recipient);
-            uint delta = deltaOf(streamId);
-            uint streamedBalance = delta.mul(stream.ratePerSecond);
-            stream.remainingBalance = stream.deposit.sub(streamedBalance);
-            _balances[stream.sender] = senderBalance;
-            _balances[stream.recipient] = recipientBalance;
+            Stream storage stream = streams[streamId];
+            uint streamedBalance = _getStreamSentBalance(streamId);
+            stream.remainingBalance = stream.remainingBalance.sub(streamedBalance);
+            if(stream.sender != address(0)) _balances[stream.sender] = _balances[stream.sender].sub(streamedBalance);
+            if(stream.recipient != address(0)) _balances[stream.recipient] = _balances[stream.recipient].add(streamedBalance);
+            if(stream.sender == address(0)) _totalSupply = _totalSupply.add(streamedBalance);
+            if(stream.recipient == address(0)) _totalSupply = _totalSupply.sub(streamedBalance);
+            emit Transfer(stream.sender, stream.recipient, streamedBalance);
             if (stream.remainingBalance == 0){
               delete streamSenders[stream.sender];
               delete streamRecievers[stream.recipient];
               delete streams[streamId];
             }
+
         }
 
         /*
@@ -299,18 +298,16 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
           uint remainingDuration = stream.stopTime.sub(block.timestamp);
           uint ratePerSecond = deposit.div(remainingDuration);
 
-          /* Create and store the stream object. */
-          uint256 streamId = nextStreamId;
-          streams[streamId] = Stream({
-              remainingBalance: deposit,
-              deposit: deposit,
-              isEntity: true,
-              ratePerSecond: ratePerSecond,
-              recipient: stream.recipient,
-              sender: msg.sender,
-              startTime: block.timestamp,
-              stopTime: stream.stopTime
-              });
+          /* edit the stream object. */
+
+          stream.remainingBalance = deposit;
+          stream.deposit = deposit;
+          stream.isEntity = true;
+          stream.ratePerSecond = ratePerSecond;
+          stream.recipient = stream.recipient;
+          stream.sender = msg.sender;
+          stream.startTime = block.timestamp;
+          stream.stopTime = stream.stopTime;
 
           emit StreamEdited(_streamId);
         }
@@ -490,7 +487,7 @@ function createStreamFromDAO(address recipient, uint amount, uint duration) publ
   require(fromDAOStreams[recipient] == 0, "recipient has existing stream from DAO");
 
 
-  uint stopTime = block.timestamp.add(amount);
+  uint stopTime = block.timestamp.add(duration);
   uint ratePerSecond = amount.div(duration);
 
   /* Create and store the stream object. */
