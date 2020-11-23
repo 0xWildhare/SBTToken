@@ -395,4 +395,73 @@ describe("SBTToken", function() {
 
   })
 
+  describe('A stream to DAO', () => {
+
+    let caller;
+    let stringId;
+
+    beforeEach(async () => {
+      caller = ethers.provider.getSigner(1);
+
+      await token.transfer(
+        caller.getAddress(),
+        ethers.utils.parseEther("1000")
+      );
+
+      const tx = await token.connect(caller).createStreamToDAO(ethers.utils.parseEther("100"));
+
+      //const reciept = await tx.wait();
+
+    //  console.log(reciept);
+
+      });
+
+      it("should exist", async () => {
+
+        const stream = await token.getStream(1);
+        //console.log(await ethers.provider.getSigner(0).getAddress());
+        //console.log(stream);
+        assert(stream);
+
+      })
+
+    })
+
+    describe('A stream to 0x0', () => {
+
+      let caller;
+      let stringId;
+
+      beforeEach(async () => {
+        caller = ethers.provider.getSigner(1);
+
+        await token.transfer(
+          caller.getAddress(),
+          ethers.utils.parseEther("1000")
+        );
+
+        const tx = await token.connect(caller).createStreamTo0x0(ethers.utils.parseEther("100"));
+
+        //const reciept = await tx.wait();
+
+      //  console.log(reciept);
+
+        });
+
+        it("should exist", async () => {
+
+          const stream = await token.getStream(1);
+          //console.log(await ethers.provider.getSigner(0).getAddress());
+          //console.log(stream);
+          assert(stream);
+
+        })
+
+      })
+
+
+
+
+
+
 });

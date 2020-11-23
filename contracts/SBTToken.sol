@@ -44,6 +44,7 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
    */
   uint256 public nextStreamId;
 
+  //for person to person streams
   struct Stream {
     uint256 deposit;
     uint256 ratePerSecond;
@@ -54,12 +55,13 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
     address sender;
     //address tokenAddress;
     bool isEntity;
-}
+  }
 
-/**
- * @notice The stream objects identifiable by their unsigned integer ids.
- */
-mapping(uint256 => Stream) private streams;
+  /**
+   * @notice The stream objects identifiable by their unsigned integer ids.
+   */
+  mapping(uint256 => Stream) private streams;
+
 
       /**
     * @dev Throws if the provided id does not point to a valid stream.
@@ -77,6 +79,16 @@ mapping(uint256 => Stream) private streams;
       mapping(address => uint256) private streamSenders;
       mapping(address => uint256) private streamRecievers;
 
+      //for streams to DAO
+      //identifiable by sender address
+      mapping(address => uint256) private toDAOStreams;
+
+      //for streams to 0x0
+      //identifiable by sender address
+      mapping(address => uint256) private to0x0Streams;
+
+      //global stream time set by DAO
+      uint globalStreamTime = 2500000; //approx 29 days
 
 /*
   ***CONTRACT LOGIC STARTS HERE***
@@ -92,6 +104,15 @@ mapping(uint256 => Stream) private streams;
       _mint(msg.sender, amount);
     }
 
+    /*
+      * changes the streamrate to the DAO, or to 0x0, only settable by DAO
+      * uints are Gwei/second.
+      */
+    function changeStreamTime(uint newTime) public onlyOwner {
+      require(newTime != 0, "time cannot be 0");
+      globalStreamTime = newTime;
+    }
+
 /*
   ****the following functions (balanceOf, _beforeTokenTransfer) are heavily modified from ERC20***
   */
@@ -101,14 +122,20 @@ mapping(uint256 => Stream) private streams;
 
         //if there is a send stream for account, modify accordingly (only handles 1 send stream per account)
         if(streamSenders[account] != 0) {
-          uint sentBalance = _streamSentBalance(streamSenders[account]);
+          uint sentBalance = _getStreamSentBalance(streamSenders[account]);
           calculatedBalance = calculatedBalance.sub(sentBalance);
         }
 
         //if there is a recieve stream for account, modify accordingly
         if(streamRecievers[account] != 0) {
-          uint recievedBalance = _streamSentBalance(streamRecievers[account]);
+          uint recievedBalance = _getStreamSentBalance(streamRecievers[account]);
           calculatedBalance = calculatedBalance.add(recievedBalance);
+        }
+
+        //if there is a stream to DAO for account, modify accordingly
+        if(toDAOStreams[account] != 0) {
+          uint sentToDAOBalance = _getStreamSentBalance(toDAOStreams[account]);
+          calculatedBalance = calculatedBalance.sub(sentToDAOBalance);
         }
 
 
@@ -118,7 +145,7 @@ mapping(uint256 => Stream) private streams;
 
 
       //this function cleans up redundant code in  the balanceOf function
-      function _streamSentBalance(uint streamId) internal view returns(uint) {
+      function _getStreamSentBalance(uint streamId) internal view returns(uint) {
         Stream memory stream = streams[streamId];
         uint delta = deltaOf(streamId);
         uint sentBalance = delta.mul(stream.ratePerSecond);
@@ -159,9 +186,13 @@ mapping(uint256 => Stream) private streams;
         if(streams[streamSenders[to]].isEntity) updateStream(streamSenders[to]);
         if(streams[streamRecievers[to]].isEntity)updateStream(streamRecievers[to]);
 
+        //same for DAO streams
+        if(streams[toDAOStreams[from]].isEntity) updateStream(toDAOStreams[from]);
+        if(streams[toDAOStreams[to]].isEntity) updateStream(toDAOStreams[to]); //don't know that it is necessary to update all of "to's" streams.
+
         //require sender has enough to cover remaining balance after sending amount.
         //unless its the mint function, thus coming from 0
-        uint sendersStreamRemainingBalance = streams[streamSenders[from]].remainingBalance;
+        uint sendersStreamRemainingBalance = streams[streamSenders[from]].remainingBalance.add(streams[toDAOStreams[from]].remainingBalance);
         uint sendersAvailableBalance = _balances[from].sub(sendersStreamRemainingBalance);
         if(from != address(0)) require(sendersAvailableBalance >= amount, "not enough money");
 
@@ -207,6 +238,40 @@ mapping(uint256 => Stream) private streams;
           delete streams[_streamId];
         }
 
+        /*
+          *this seems bulky - and does not seem to add much utility over merely canceling and starting
+          *a new stream, but it is easy to build, so here it is (probably for testing purposes only).
+          *only the deposit value is editable (in this iteration - may change later). also - this seems
+          *like ripe territoy for attackers.
+          */
+        event StreamEdited(uint streamId);
+
+        function editStream(uint _streamId, uint deposit) public {
+          Stream memory stream = streams[_streamId];
+          _beforeTokenTransfer(msg.sender, stream.recipient, deposit);
+          require(streams[_streamId].isEntity, "stream does not exist, or has ended");
+          require(msg.sender == stream.sender, "not authorized to modify this stream");
+          //require(owner() != stream.recipient, "cannot edit streams to DAO"); //Don't know if this is necessary
+
+          uint remainingDuration = stream.stopTime.sub(block.timestamp);
+          uint ratePerSecond = deposit.div(remainingDuration);
+
+          /* Create and store the stream object. */
+          uint256 streamId = nextStreamId;
+          streams[streamId] = Stream({
+              remainingBalance: deposit,
+              deposit: deposit,
+              isEntity: true,
+              ratePerSecond: ratePerSecond,
+              recipient: stream.recipient,
+              sender: msg.sender,
+              startTime: block.timestamp,
+              stopTime: stream.stopTime
+              });
+
+          emit StreamEdited(_streamId);
+        }
+
 
 /*
 ****this section is adapted and simplified from Sablier***
@@ -228,7 +293,11 @@ function createStream(address recipient, uint256 deposit, uint256 duration)
     returns (uint256)
 {
 
-        require(recipient != msg.sender, "stream to the caller");
+        require(recipient != msg.sender, "cannot stream to the caller");
+        require(recipient != address(this), "cannot stream to the contract");
+        require(recipient != owner(), "cannot stream to the DAO");
+        require(recipient != address(0), "cannot stream to the 0x0");
+
         require(deposit > 0, "deposit is zero");
 
         require(deposit >= duration, "deposit smaller than time delta");
@@ -248,12 +317,9 @@ function createStream(address recipient, uint256 deposit, uint256 duration)
         _beforeTokenTransfer(msg.sender, recipient, deposit);
 
         require(streamSenders[msg.sender] == 0, "Only allowed to send one stream at a time");
-        require(streamRecievers[recipient] == 0 || recipient == address(0), "Can only recieve one stream at a time");
+        require(streamRecievers[recipient] == 0, "Can only recieve one stream at a time");
 
-        /*
-        *stream sender must have funds available to create stream.
-        */
-        require(_balances[msg.sender] >= deposit, "not enough balance to cover deposit" );
+
 
         uint ratePerSecond = deposit.div(duration);
         uint stopTime = block.timestamp.add(duration);
@@ -279,6 +345,82 @@ function createStream(address recipient, uint256 deposit, uint256 duration)
             nextStreamId = nextStreamId.add(1);
             emit StreamCreated(streamId);
             return(streamId);
+}
+
+event StreamToDAOCreated(uint streamId);
+
+function createStreamToDAO(uint deposit) public returns(uint){
+  require(deposit > 0, "deposit is zero");
+  require(toDAOStreams[msg.sender] == 0, "sender has existing stream");
+
+  require(deposit >= globalStreamTime, "deposit smaller than time delta");
+  require(deposit % globalStreamTime == 0, "deposit must be divisible by stream time");
+
+
+  //not sure how the _beforeTokenTransfer function should be called. using address(0) as a placeholder.
+  _beforeTokenTransfer(msg.sender, address(0), deposit);
+  //TODO: add a way to check streams to/from DAO and to 0x
+
+
+  uint stopTime = block.timestamp.add(globalStreamTime);
+  uint ratePerSecond = deposit.div(globalStreamTime);
+
+  /* Create and store the stream object. */
+  uint256 streamId = nextStreamId;
+  streams[streamId] = Stream({
+      remainingBalance: deposit,
+      deposit: deposit,
+      isEntity: true,
+      ratePerSecond: ratePerSecond,
+      recipient: owner(),
+      sender: msg.sender,
+      startTime: block.timestamp,
+      stopTime: stopTime
+      });
+
+      toDAOStreams[msg.sender] = streamId;
+
+      nextStreamId = nextStreamId.add(1);
+      emit StreamToDAOCreated(streamId);
+      return(streamId);
+}
+
+event StreamTo0x0Created(uint streamId);
+
+function createStreamTo0x0(uint deposit) public returns(uint){
+  require(deposit > 0, "deposit is zero");
+  require(toDAOStreams[msg.sender] == 0, "sender has existing stream");
+
+  require(deposit >= globalStreamTime, "deposit smaller than time delta");
+  require(deposit % globalStreamTime == 0, "deposit must be divisible by stream time");
+
+
+  //not sure how the _beforeTokenTransfer function should be called. using address(0) as a placeholder.
+  _beforeTokenTransfer(msg.sender, address(0), deposit);
+  //TODO: add a way to check streams to/from DAO and to 0x
+
+
+  uint stopTime = block.timestamp.add(globalStreamTime);
+  uint ratePerSecond = deposit.div(globalStreamTime);
+
+  /* Create and store the stream object. */
+  uint256 streamId = nextStreamId;
+  streams[streamId] = Stream({
+      remainingBalance: deposit,
+      deposit: deposit,
+      isEntity: true,
+      ratePerSecond: ratePerSecond,
+      recipient: address(0),
+      sender: msg.sender,
+      startTime: block.timestamp,
+      stopTime: stopTime
+      });
+
+      to0x0Streams[msg.sender] = streamId;
+
+      nextStreamId = nextStreamId.add(1);
+      emit StreamTo0x0Created(streamId);
+      return(streamId);
 }
 
 
