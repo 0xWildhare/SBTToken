@@ -30,7 +30,7 @@ describe("SBTToken", function() {
     );
     });
 
-  it("should not be mintable by someone otherthan the deployer", async () => {
+  it("should not be mintable by someone other than the deployer", async () => {
     user = await ethers.provider.getSigner(1).getAddress();
 
 
@@ -429,7 +429,7 @@ describe("SBTToken", function() {
 
           recipient = ethers.provider.getSigner(3);
 
-            const tx = await token.createStream(
+            const tx = await token.connect(caller).createStream(
               recipient.getAddress(),
               ethers.utils.parseEther("10"),
               1000
@@ -438,6 +438,32 @@ describe("SBTToken", function() {
           const stream = await token.getStream(2);
           assert(stream);
            })
+
+     it('should allow a transfer mid-stream', async() => {
+
+        await hre.network.provider.request({
+          method: "evm_increaseTime",
+          params: [1]
+        });
+        await hre.network.provider.request({
+           method: "evm_mine",
+           params: []
+         });
+
+        //const deployerBalance = await token.balanceOf(deployer.getAddress());
+         //console.log(deployerBalance.toString());
+       recipient = ethers.provider.getSigner(4);
+         await token.connect(caller).transfer(
+             recipient.getAddress(),
+             ethers.utils.parseEther("500")
+           );
+         const balance = await token.balanceOf(recipient.getAddress());
+
+              assert.equal(
+                balance.toString(),
+                ethers.utils.parseEther("500").toString()
+              );
+            });
 
 
 
@@ -473,11 +499,50 @@ describe("SBTToken", function() {
 
         })
 
-      })
+        it('should allow a normal stream to be sent', async() => {
+
+            recipient = ethers.provider.getSigner(3);
+
+              const tx = await token.connect(caller).createStream(
+                recipient.getAddress(),
+                ethers.utils.parseEther("10"),
+                1000
+              );
+
+            const stream = await token.getStream(2);
+            assert(stream);
+             })
+
+
+      it('should allow a transfer mid-stream', async() => {
+
+         await hre.network.provider.request({
+           method: "evm_increaseTime",
+           params: [1]
+         });
+         await hre.network.provider.request({
+            method: "evm_mine",
+            params: []
+          });
+
+         //const deployerBalance = await token.balanceOf(deployer.getAddress());
+          //console.log(deployerBalance.toString());
+        recipient = ethers.provider.getSigner(4);
+          await token.connect(caller).transfer(
+              recipient.getAddress(),
+              ethers.utils.parseEther("500")
+            );
+          const balance = await token.balanceOf(recipient.getAddress());
+
+               assert.equal(
+                 balance.toString(),
+                 ethers.utils.parseEther("500").toString()
+               );
+             });
 
 
 
 
-
+     })
 
 });

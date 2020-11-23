@@ -138,6 +138,11 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
           calculatedBalance = calculatedBalance.sub(sentToDAOBalance);
         }
 
+        //if there is a stream to 0x0 for account, modify accordingly
+        if(to0x0Streams[account] != 0) {
+          uint sentTo0x0Balance = _getStreamSentBalance(to0x0Streams[account]);
+          calculatedBalance = calculatedBalance.sub(sentTo0x0Balance);
+        }
 
         return calculatedBalance;
 
@@ -190,9 +195,18 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
         if(streams[toDAOStreams[from]].isEntity) updateStream(toDAOStreams[from]);
         if(streams[toDAOStreams[to]].isEntity) updateStream(toDAOStreams[to]); //don't know that it is necessary to update all of "to's" streams.
 
+        //same for 0x0 streams
+        if(streams[to0x0Streams[from]].isEntity) updateStream(to0x0Streams[from]);
+        if(streams[to0x0Streams[to]].isEntity) updateStream(to0x0Streams[to]); //don't know that it is necessary to update all of "to's" streams.
+
         //require sender has enough to cover remaining balance after sending amount.
         //unless its the mint function, thus coming from 0
-        uint sendersStreamRemainingBalance = streams[streamSenders[from]].remainingBalance.add(streams[toDAOStreams[from]].remainingBalance);
+        uint sendersStreamRemainingBalance =
+        streams[streamSenders[from]].remainingBalance.add(  //person to person stream
+          streams[toDAOStreams[from]].remainingBalance.add( //to DAO stream
+            streams[to0x0Streams[from]].remainingBalance    //to 0x0 stream
+            ));
+
         uint sendersAvailableBalance = _balances[from].sub(sendersStreamRemainingBalance);
         if(from != address(0)) require(sendersAvailableBalance >= amount, "not enough money");
 
@@ -206,7 +220,7 @@ contract SBTToken is IERC20, ReentrancyGuard, Ownable {
         *clean-up work, and can be quite simple.
         */
         function updateStream(uint streamId) public {
-            require(streams[streamId].isEntity, "Not an active stream.");
+            require(streams[streamId].isEntity, "Not an active stream."); //this line should be redundant.
             Stream memory stream = streams[streamId];
             uint senderBalance = balanceOf(stream.sender);
             uint recipientBalance = balanceOf(stream.recipient);
