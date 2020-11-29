@@ -1,13 +1,13 @@
 const { assert } = require("chai");
 
-describe("SBTToken", function() {
+describe("SBToken", function() {
   let token;
   let deployer
   const supply = "1000"
   beforeEach(async () => {
     deployer = await ethers.provider.getSigner(0);
-    const SBTToken = await ethers.getContractFactory("SBTToken");
-    token = await SBTToken.deploy(ethers.utils.parseEther(supply));
+    const SBToken = await ethers.getContractFactory("SBToken");
+    token = await SBToken.deploy(ethers.utils.parseEther(supply));
     await token.deployed();
   });
 
@@ -563,7 +563,7 @@ describe("SBTToken", function() {
   })
 
 
-  describe('A stream to DAO', () => {
+  describe('A stream to Bonding', () => {
 
     let caller;
     let stringId;
@@ -576,7 +576,7 @@ describe("SBTToken", function() {
         ethers.utils.parseEther("1000")
       );
 
-      const tx = await token.connect(caller).createStreamToDAO(ethers.utils.parseEther("100"));
+      const tx = await token.connect(caller).createStreamToBonding(ethers.utils.parseEther("100"));
 
       //const reciept = await tx.wait();
 
@@ -637,7 +637,7 @@ describe("SBTToken", function() {
 
     })
 
-    describe('A stream to 0x0', () => {
+    describe('A stream to Burn', () => {
 
       let caller;
       let stringId;
@@ -650,7 +650,7 @@ describe("SBTToken", function() {
           ethers.utils.parseEther("1000")
         );
 
-        const tx = await token.connect(caller).createStreamTo0x0(ethers.utils.parseEther("100"));
+        const tx = await token.connect(caller).createStreamToBurn(ethers.utils.parseEther("100"));
 
         //const reciept = await tx.wait();
 
@@ -710,7 +710,7 @@ describe("SBTToken", function() {
         })
 
 
-     describe('A stream from DAO', () => {
+     describe('A stream from Bonding', () => {
 
        let caller;
        let stringId;
@@ -724,7 +724,7 @@ describe("SBTToken", function() {
          );
 
          //address recipient, uint amount, uint duration
-         const tx = await token.createStreamFromDAO(caller.getAddress(), ethers.utils.parseEther("100"), 1000);
+         const tx = await token.createStreamFromBonding(caller.getAddress(), ethers.utils.parseEther("100"), 1000);
 
          //const reciept = await tx.wait();
 

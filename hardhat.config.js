@@ -1,7 +1,7 @@
 require("@nomiclabs/hardhat-waffle");
 require("@nomiclabs/hardhat-etherscan");
 require('dotenv').config();
-
+require('hardhat-contract-sizer');
 
 module.exports = {
   solidity: "0.6.2",
@@ -20,6 +20,12 @@ module.exports = {
   etherscan: {
 
     apiKey: process.env.API
-  }
+  },
+
+  contractSizer: {
+  alphaSort: true,
+  runOnCompile: true,
+  disambiguatePaths: false,
+}
 
 };
