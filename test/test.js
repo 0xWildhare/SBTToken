@@ -246,6 +246,7 @@ describe("SBToken", function() {
 
     it('should not allow a transfer to cut into remaining stream balance', async() => {
 
+
        await hre.network.provider.request({
          method: "evm_increaseTime",
          params: [1]
@@ -714,14 +715,25 @@ describe("SBToken", function() {
 
        let caller;
        let stringId;
+       let bondingContract;
 
        beforeEach(async () => {
          caller = ethers.provider.getSigner(1);
+         bondingContract = ethers.provider.getSigner(5);
 
          await token.transfer(
            caller.getAddress(),
            ethers.utils.parseEther("1000")
          );
+
+         await token.mint(ethers.utils.parseEther(supply));
+
+         await token.transfer(
+           bondingContract.getAddress(),
+           ethers.utils.parseEther("1000")
+         );
+
+         await token.changeBondingContract(bondingContract.getAddress());
 
          //address recipient, uint amount, uint duration
          const tx = await token.createStreamFromBonding(caller.getAddress(), ethers.utils.parseEther("100"), 1000);
