@@ -5,6 +5,11 @@ require('hardhat-contract-sizer');
 
 module.exports = {
   solidity: "0.6.2",
+  
+  paths: {
+    artifacts: "./app/artifacts",
+  },
+
   networks: {
     ropsten: {
       url: process.env.URL,
