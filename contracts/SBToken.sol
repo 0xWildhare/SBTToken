@@ -83,7 +83,7 @@ contract SBToken is IERC20, ReentrancyGuard, Ownable {
     }
 
       address private _bondingContract;
-      address private _cuponContract;
+      address private _couponContract;
       //for the remainders from streamSenders
       address private _dustCollector;
 
@@ -104,7 +104,7 @@ contract SBToken is IERC20, ReentrancyGuard, Ownable {
         _mint(msg.sender, initialSupply); //Mints initial supply to deployer
         nextStreamId = 1; //from Sablier
         _bondingContract = msg.sender;
-        _cuponContract = msg.sender;
+        _couponContract = msg.sender;
         _dustCollector = msg.sender;
     }
 
@@ -116,8 +116,8 @@ contract SBToken is IERC20, ReentrancyGuard, Ownable {
       _mint(msg.sender, amount);
     }
 
-    function changeCuponContract(address newCuponContract) public onlyOwner {
-      _cuponContract = newCuponContract;
+    function changeCouponContract(address newCouponContract) public onlyOwner {
+      _couponContract = newCouponContract;
     }
 
     function changeBondingContract(address newBondingContract) public onlyOwner {
@@ -132,8 +132,8 @@ contract SBToken is IERC20, ReentrancyGuard, Ownable {
       return _bondingContract;
     }
 
-    function getCuponContract() public view returns(address){
-      return _cuponContract;
+    function getCouponContract() public view returns(address){
+      return _couponContract;
     }
 
     function getDustCollector() public view returns(address){
@@ -296,7 +296,7 @@ contract SBToken is IERC20, ReentrancyGuard, Ownable {
 
       /* stream amounts must be divisible by the stream duration.
         * to avoid unwanted errors when creating streams (improving UX),
-        * the remainder is removed from the amount, and the dust setn to the
+        * the remainder is removed from the amount, and the dust set to the
         * dustCollector contract - use tbd by DAO.
         * users should avoid long stream times, as can will generate larger remainders
         */
@@ -366,7 +366,7 @@ contract SBToken is IERC20, ReentrancyGuard, Ownable {
           returns (uint256)
       {
               require(recipient != address(this), "cannot stream to the contract");
-              require(recipient != _cuponContract, "use streamToCuponContract method");
+              require(recipient != _couponContract, "use streamToCouponContract method");
               require(recipient != _bondingContract, "use streamToBondingContract method");
             /*
               *unique senders and recipients(each address can have only one sender stream and one recipient
@@ -422,12 +422,12 @@ contract SBToken is IERC20, ReentrancyGuard, Ownable {
             _globalStreamTime = (globalStreamTime.div(1000)).mul(streamTimeModifier[msg.sender]);
           }
 
-          _beforeTokenTransfer(msg.sender, _cuponContract, amount);
+          _beforeTokenTransfer(msg.sender, _couponContract, amount);
           require(streamsIndex[msg.sender][1] == 0, "sender has existing stream");
 
           /* Create and store the stream object. */
           uint256 streamId = nextStreamId;
-          _createStream(msg.sender, _cuponContract, amount, _globalStreamTime, streamId);
+          _createStream(msg.sender, _couponContract, amount, _globalStreamTime, streamId);
           streamsIndex[msg.sender][1] = streamId;
 
           nextStreamId = nextStreamId.add(1);

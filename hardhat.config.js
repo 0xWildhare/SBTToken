@@ -2,10 +2,17 @@ require("@nomiclabs/hardhat-waffle");
 require("@nomiclabs/hardhat-etherscan");
 require('dotenv').config();
 require('hardhat-contract-sizer');
+require("hardhat-gas-reporter");
 
 module.exports = {
   solidity: "0.6.2",
-  
+
+
+  gasReporter: {
+    currency: 'USD',
+    enabled: false
+  },
+
   paths: {
     artifacts: "./app/artifacts",
   },

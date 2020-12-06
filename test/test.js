@@ -4,11 +4,30 @@ describe("SBToken", function() {
   let token;
   let deployer
   const supply = "1000"
+  let bondingContract;
+  let couponContract;
+  let dustCollector;
+
   beforeEach(async () => {
     deployer = await ethers.provider.getSigner(0);
+    bondingContract = await ethers.provider.getSigner(6);
+    couponContract = await ethers.provider.getSigner(7);
+    dustCollector = await await ethers.provider.getSigner(8);
+
     const SBToken = await ethers.getContractFactory("SBToken");
     token = await SBToken.deploy(ethers.utils.parseEther(supply));
     await token.deployed();
+    await token.changeBondingContract(bondingContract.getAddress());
+    await token.changeCouponContract(couponContract.getAddress());
+    await token.changeDustCollector(dustCollector.getAddress());
+
+    await token.mint(ethers.utils.parseEther(supply));
+
+    await token.transfer(
+      bondingContract.getAddress(),
+      ethers.utils.parseEther(supply)
+    );
+
   });
 
 
@@ -56,32 +75,24 @@ describe("SBToken", function() {
       address
     );
   });
-/* cant get this test to work, don't know why. will test on test net.
-  it("should allow new owner to mint", async () => {
-    let address = await ethers.provider.getSigner(2).getAddress();
-    await token.transferOwnership(address);
 
-    console.log(await token.owner());
-    console.log(address);
+  it('should have assigned a couponContract', async () => {
+    let _coupCont = await token.getCouponContract();
+    let addy = await couponContract.getAddress()
+    assert.equal(_coupCont, addy);
+  })
 
-    await hre.network.provider.request({
-      method: "evm_increaseTime",
-      params: [1]
-    });
-    await hre.network.provider.request({
-      method: "evm_mine",
-      params: []
-    });
+  it('should have assigned a bondingContract', async () => {
+    let _bondCont = await token.getBondingContract();
+    let addy = await bondingContract.getAddress()
+    assert.equal(_bondCont, addy);
+  })
 
-    const tx = await token.connect(address).mint(ethers.utils.parseEther(supply));
-    const balance = await token.balanceOf(address);
-    console.log(tx);
-    assert.equal(
-      1,1
-    );
-  });
-
-  */
+  it('should have assigned a dustCollector', async () => {
+    let _dust = await token.getDustCollector();
+    let addy = await dustCollector.getAddress()
+    assert.equal(_dust, addy);
+  })
 
   describe('a transfer', () => {
     let recipient;
@@ -369,7 +380,7 @@ describe("SBToken", function() {
       const tx = await token.createStream(
         recipient.getAddress(),
         ethers.utils.parseEther("30"),
-        200
+        207
       );
 
       const reciept = await tx.wait();
@@ -485,7 +496,7 @@ describe("SBToken", function() {
 
     await hre.network.provider.request({
       method: "evm_increaseTime",
-      params: [205]
+      params: [210]
     });
     await hre.network.provider.request({
       method: "evm_mine",
@@ -511,7 +522,7 @@ describe("SBToken", function() {
    it('Sender should not haved streamed tokens after stream ends and new stream starts', async() => {
      await hre.network.provider.request({
        method: "evm_increaseTime",
-       params: [205]
+       params: [210]
      });
      await hre.network.provider.request({
        method: "evm_mine",
@@ -532,6 +543,31 @@ describe("SBToken", function() {
           ethers.utils.parseEther("970").toString()
           );
       });
+
+      it('Recipient should haved streamed tokens after stream ends and new stream starts', async() => {
+        await hre.network.provider.request({
+          method: "evm_increaseTime",
+          params: [210]
+        });
+        await hre.network.provider.request({
+          method: "evm_mine",
+          params: []
+        });
+
+        await token.createStream(
+          recipient.getAddress(),
+          ethers.utils.parseEther("10"),
+          1000
+        );
+
+        const balance = await token.balanceOf(recipient.getAddress());
+        const deployerBalance = await token.balanceOf(deployer.getAddress());
+        //console.log(deployerBalance.toString());
+           assert.isAbove(
+             balance,
+             ethers.utils.parseEther("29")
+             );
+         });
 
       it("should be able to cancel stream", async () => {
 
@@ -558,6 +594,12 @@ describe("SBToken", function() {
         //console.log(ex);
         assert(ex);
 
+      })
+
+      it("should have sent remainder to dustCollector", async () => {
+        let dust = await token.balanceOf(dustCollector.getAddress());
+        //console.log(dust);
+        assert.isAbove(dust, 0);
       })
 
 
@@ -634,11 +676,33 @@ describe("SBToken", function() {
               );
             });
 
+      it('should have tokens in bondingContract', async () => {
+
+        await hre.network.provider.request({
+          method: "evm_increaseTime",
+          params: [1010]
+        });
+        await hre.network.provider.request({
+          method: "evm_mine",
+          params: []
+        });
+
+        await token.updateStream(1);
+        const balance = await token.balanceOf(bondingContract.getAddress());
+        const deployerBalance = await token.balanceOf(deployer.getAddress());
+        //console.log(deployerBalance.toString());
+           assert.isAbove(
+             balance,
+             ethers.utils.parseEther(supply)
+             );
+
+      }  )
+
 
 
     })
 
-    describe('A stream to Burn', () => {
+    describe('A stream to couponContract', () => {
 
       let caller;
       let stringId;
@@ -708,30 +772,46 @@ describe("SBToken", function() {
                  ethers.utils.parseEther("500").toString()
                );
              });
-        })
 
 
-     describe('A stream from Bonding', () => {
+       it('should have tokens in couponContract', async () => {
+         await hre.network.provider.request({
+           method: "evm_increaseTime",
+           params: [1010]
+         });
+         await hre.network.provider.request({
+           method: "evm_mine",
+           params: []
+         });
+
+         await token.updateStream(1);
+         const balance = await token.balanceOf(couponContract.getAddress());
+         const deployerBalance = await token.balanceOf(deployer.getAddress());
+               //console.log(deployerBalance.toString());
+            assert.isAbove(
+              balance,
+              ethers.utils.parseEther("0")
+              );
+
+       }  )
+
+    })
+
+
+    describe('A stream from Bonding', () => {
 
        let caller;
        let stringId;
-       let bondingContract;
+
 
        beforeEach(async () => {
          caller = ethers.provider.getSigner(1);
-         bondingContract = ethers.provider.getSigner(5);
 
          await token.transfer(
            caller.getAddress(),
            ethers.utils.parseEther("1000")
          );
 
-         await token.mint(ethers.utils.parseEther(supply));
-
-         await token.transfer(
-           bondingContract.getAddress(),
-           ethers.utils.parseEther("1000")
-         );
 
          await token.changeBondingContract(bondingContract.getAddress());
 
