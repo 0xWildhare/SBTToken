@@ -7,11 +7,11 @@ require("hardhat-gas-reporter");
 module.exports = {
   solidity: "0.6.2",
 
-
   gasReporter: {
     currency: 'USD',
-    enabled: false
+    gasPrice: 21
   },
+
 
   paths: {
     artifacts: "./app/artifacts",
