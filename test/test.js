@@ -7,24 +7,29 @@ describe("SBToken", function() {
   let bondingContract;
   let couponContract;
   let dustCollector;
+  let oracle;
 
   beforeEach(async () => {
     deployer = await ethers.provider.getSigner(0);
-    bondingContract = await ethers.provider.getSigner(6);
+    //bondingContract = await ethers.provider.getSigner(6);
     couponContract = await ethers.provider.getSigner(7);
     dustCollector = await await ethers.provider.getSigner(8);
 
     const SBToken = await ethers.getContractFactory("SBToken");
+    const Bonding = await ethers.getContractFactory("bondingContract");
+    const Oracle = await ethers.getContractFactory("PriceOracle");
     token = await SBToken.deploy(ethers.utils.parseEther(supply));
+    bondingContract = await Bonding.deploy();
+    oracle = await Oracle.deploy();
     await token.deployed();
-    await token.changeBondingContract(bondingContract.getAddress());
+    await token.changeBondingContract(bondingContract.address);
     await token.changeCouponContract(couponContract.getAddress());
     await token.changeDustCollector(dustCollector.getAddress());
 
     await token.mint(ethers.utils.parseEther(supply));
 
     await token.transfer(
-      bondingContract.getAddress(),
+      bondingContract.address,
       ethers.utils.parseEther(supply)
     );
 
@@ -84,7 +89,7 @@ describe("SBToken", function() {
 
   it('should have assigned a bondingContract', async () => {
     let _bondCont = await token.getBondingContract();
-    let addy = await bondingContract.getAddress()
+    let addy = await bondingContract.address;
     assert.equal(_bondCont, addy);
   })
 
@@ -93,6 +98,36 @@ describe("SBToken", function() {
     let addy = await dustCollector.getAddress()
     assert.equal(_dust, addy);
   })
+  it('should not access balance through getAddress', async () => {
+    let ex;
+    try {
+        await bondingContract.getBalance()
+    }
+    catch(_ex) {
+      ex = _ex;
+    }
+    assert(ex); // asserts that ex is truthy, otherwise this fails
+  })
+  it('should see address after token is set', async () => {
+    await bondingContract.setToken(token.address);
+    let tokenAddress = await bondingContract.getToken();
+    //console.log(tokenAddress);
+    //console.log(token.address);
+    assert.equal(tokenAddress, token.address);
+  })
+  it('should see bonding balance after token is set', async () => {
+    await bondingContract.setToken(token.address);
+    await token.transfer(
+      bondingContract.address,
+      ethers.utils.parseEther("13"));
+    let bondingBalance = await token.balanceOf(bondingContract.address);
+    let bondingBalanceFromBonding = await bondingContract.getBondingBalance();
+    //console.log(bondingBalance.toString());
+    //console.log(bondingBalanceFromBonding.toString());
+    assert.equal(bondingBalance.toString(), bondingBalanceFromBonding.toString());
+
+  })
+
 
   describe('a transfer', () => {
     let recipient;
@@ -119,6 +154,29 @@ describe("SBToken", function() {
       ethers.utils.parseEther("990").toString()
     );
   });
+
+  it('should cost a lot to make a transfer if many streams are active', async () => {
+    await token.createStream(
+      recipient.getAddress(),
+      ethers.utils.parseEther("24"),
+      200
+    );
+    let caller = await ethers.provider.getSigner(1);
+    await token.connect(caller).createStream(
+      deployer.getAddress(),
+      ethers.utils.parseEther("5"),
+      1000
+    );
+    await token.createStreamToBonding(ethers.utils.parseEther("10"));
+    await token.createStreamFromBonding(deployer.getAddress(), ethers.utils.parseEther("10"), 1000);
+    await token.createStreamToBurn(ethers.utils.parseEther("10"));
+    await token.transfer(
+      recipient.getAddress(),
+      ethers.utils.parseEther("10")
+    );
+    assert.equal(0,0);
+
+  })
 });
 
 
@@ -688,7 +746,7 @@ describe("SBToken", function() {
         });
 
         await token.updateStream(1);
-        const balance = await token.balanceOf(bondingContract.getAddress());
+        const balance = await token.balanceOf(bondingContract.address);
         const deployerBalance = await token.balanceOf(deployer.getAddress());
         //console.log(deployerBalance.toString());
            assert.isAbove(
@@ -813,7 +871,7 @@ describe("SBToken", function() {
          );
 
 
-         await token.changeBondingContract(bondingContract.getAddress());
+         await token.changeBondingContract(bondingContract.address);
 
          //address recipient, uint amount, uint duration
          const tx = await token.createStreamFromBonding(caller.getAddress(), ethers.utils.parseEther("100"), 1000);
@@ -896,6 +954,19 @@ describe("SBToken", function() {
 
 
         })
+    describe('a bonding deposit', async() => {
 
+      beforeEach(async () => {
+        await bondingContract.setToken(token.address);
+        await token.approve(bondingContract.address, ethers.utils.parseEther(supply));
+        await bondingContract.bondTokens(ethers.utils.parseEther('10'));
+      });
+
+      it('should have created a deposit', async () => {
+        let deposit = await bondingContract.getDeposit();
+        //console.log(deposit);
+        assert(deposit);
+      })
+    })
 
 });

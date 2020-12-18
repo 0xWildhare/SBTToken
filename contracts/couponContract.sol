@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/proxy/Initializable.sol";
 
 
-contract couponContract is ERC1155, Owanable, Initializable, ReentrancyGuard {
+abstract contract couponContract is ERC1155, Ownable, Initializable, ReentrancyGuard {
 
     using SafeMath for uint256;
 
@@ -19,10 +19,9 @@ contract couponContract is ERC1155, Owanable, Initializable, ReentrancyGuard {
     uint private _duration = 2500;
 
     struct Coupon {
-      uint startTime
-      uint expirationTime,
-      bool isEntity,
-
+      uint startTime;
+      uint expirationTime;
+      bool isEntity;
     }
 
     mapping(uint => Coupon) private _coupons;
@@ -32,9 +31,9 @@ contract couponContract is ERC1155, Owanable, Initializable, ReentrancyGuard {
     }
 
     function getCoupon(uint _id) public view returns(
-      uint startTime
+      uint startTime,
       uint expirationTime,
-      bool isEntity,
+      bool isEntity
       )
       {
         startTime = _coupons[_id].startTime;
@@ -45,20 +44,20 @@ contract couponContract is ERC1155, Owanable, Initializable, ReentrancyGuard {
       function createCoupon()public onlyOwner returns(uint) {
         uint _id = nextCouponIndex;
         nextCouponIndex++;
-        coupons[_id] = Coupon({
-          startTime: block.timeStamp,
+        _coupons[_id] = Coupon({
+          startTime: block.timestamp,
           expirationTime: (block.timestamp.add(_duration)),
           isEntity: true
-          })
+          });
           return(_id);
       }
-
+/*
       function mint(address account, uint256 id, uint256 amount, bytes memory data) public onlyOwner {
         require(streams[id].isEntity);
         _mint(acccount, id, amount, data);
       }
+*/
 
-      
 
 
 

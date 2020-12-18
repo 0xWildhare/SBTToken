@@ -5,11 +5,23 @@ require('hardhat-contract-sizer');
 require("hardhat-gas-reporter");
 
 module.exports = {
-  solidity: "0.6.2",
+  solidity: {
+    compilers: [
+      {
+        version: "0.6.6"
+      },
+
+      {
+        version: "0.6.2"
+      }
+    ]
+  },
+
 
   gasReporter: {
     currency: 'USD',
-    gasPrice: 21
+    enabled: true,
+    coinmarketcap: 'bccef7ad-0ba5-4b4e-83d0-e1a488812524',
   },
 
 
