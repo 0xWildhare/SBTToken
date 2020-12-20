@@ -25,6 +25,7 @@ describe("SBToken", function() {
     await token.changeBondingContract(bondingContract.address);
     await token.changeCouponContract(couponContract.getAddress());
     await token.changeDustCollector(dustCollector.getAddress());
+    await bondingContract.setPair(oracle.address);
 
     await token.mint(ethers.utils.parseEther(supply));
 
@@ -128,7 +129,7 @@ describe("SBToken", function() {
 
   })
 
-
+/*
   describe('a transfer', () => {
     let recipient;
     beforeEach(async () => {
@@ -369,13 +370,7 @@ describe("SBToken", function() {
       method: "evm_mine",
       params: []
     });
-/*
-    recipient = ethers.provider.getSigner(1);
-    await token.transfer(
-      recipient.getAddress(),
-      ethers.utils.parseEther("1")
-    );
-*/
+
     const balance = await token.balanceOf(recipient.getAddress());
     const deployerBalance = await token.balanceOf(deployer.getAddress());
     //console.log(deployerBalance.toString());
@@ -560,13 +555,7 @@ describe("SBToken", function() {
       method: "evm_mine",
       params: []
     });
-  /*
-    recipient = ethers.provider.getSigner(1);
-    await token.transfer(
-      recipient.getAddress(),
-      ethers.utils.parseEther("1")
-    );
-  */
+
     const balance = await token.balanceOf(recipient.getAddress());
     const deployerBalance = await token.balanceOf(deployer.getAddress());
     //console.log(deployerBalance.toString());
@@ -960,6 +949,7 @@ describe("SBToken", function() {
         await bondingContract.setToken(token.address);
         await token.approve(bondingContract.address, ethers.utils.parseEther(supply));
         await bondingContract.bondTokens(ethers.utils.parseEther('10'));
+
       });
 
       it('should have created a deposit', async () => {
@@ -968,5 +958,158 @@ describe("SBToken", function() {
         assert(deposit);
       })
     })
+
+    describe('oracle interaction', async () => {
+      beforeEach(async () => {
+
+          await hre.network.provider.request({
+            method: "evm_increaseTime",
+            params: [3602]
+          });
+          await hre.network.provider.request({
+             method: "evm_mine",
+             params: []
+          });
+          await oracle.storePrice(66312345678, 63412345678);
+
+          await hre.network.provider.request({
+            method: "evm_increaseTime",
+            params: [3612]
+          });
+          await hre.network.provider.request({
+             method: "evm_mine",
+             params: []
+          });
+          await oracle.storePrice(66712345678, 65412345678);
+
+          await hre.network.provider.request({
+            method: "evm_increaseTime",
+            params: [3633]
+          });
+          await hre.network.provider.request({
+             method: "evm_mine",
+             params: []
+          });
+          await oracle.storePrice(65912345678, 67212345678);
+
+          await hre.network.provider.request({
+            method: "evm_increaseTime",
+            params: [3602]
+          });
+          await hre.network.provider.request({
+             method: "evm_mine",
+             params: []
+          });
+          await oracle.storePrice(67112345678, 65312345678);
+      })
+
+      it('should give price', async () => {
+        const price = await oracle.getCurrentPrice();
+        //console.log(price);
+        assert(price);
+      })
+      it('should give time', async () => {
+        const time = await oracle.getCurrentTime();
+        //console.log(time);
+        assert(time);
+      })
+      it('it should give a previous price', async () => {
+        let time = await oracle.getCurrentTime();
+        time = time - 8000;
+        const price = await oracle.getPrice(time);
+        //console.log(price);
+        assert(price);
+      })
+      it('it should give different previous prices at different times', async () => {
+        let time = await oracle.getCurrentTime();
+        time1 = time - 4800;
+        time2 = time - 4900;
+        const price1 = await oracle.getPrice(time1);
+        const price2 = await oracle.getPrice(time2);
+        //console.log(price1, price2);
+        assert.notEqual(price1, price2);
+      })
+    })
+*/
+    describe('a bonding intrest calculation', async() => {
+
+      beforeEach(async () => {
+        await bondingContract.setToken(token.address);
+        await token.approve(bondingContract.address, ethers.utils.parseEther(supply));
+        await bondingContract.bondTokens(ethers.utils.parseEther('1000'));
+/*
+          await hre.network.provider.request({
+            method: "evm_increaseTime",
+            params: [3602]
+          });
+          await hre.network.provider.request({
+             method: "evm_mine",
+             params: []
+          });
+          await oracle.storePrice(66312345678, 69412345678);
+
+          await hre.network.provider.request({
+            method: "evm_increaseTime",
+            params: [3612]
+          });
+          await hre.network.provider.request({
+             method: "evm_mine",
+             params: []
+          });
+          await oracle.storePrice(66712345678, 68412345678);
+
+          await hre.network.provider.request({
+            method: "evm_increaseTime",
+            params: [3633]
+          });
+          await hre.network.provider.request({
+             method: "evm_mine",
+             params: []
+          });
+          await oracle.storePrice(65912345678, 67212345678);
+
+          await hre.network.provider.request({
+            method: "evm_increaseTime",
+            params: [3602]
+          });
+          await hre.network.provider.request({
+             method: "evm_mine",
+             params: []
+          });
+          await oracle.storePrice(67112345678, 67312345678);
+*/
+      })
+
+
+      it('should get index for address', async () => {
+        const index = await bondingContract.getIndex();
+        //console.log(index);
+        assert(index);
+      })
+
+      it('should get deposit', async () => {
+        let deposit = await bondingContract.getDeposit();
+        //console.log(deposit);
+        assert(deposit);
+      })
+/*
+      it('shoould show interest rate', async () => {
+        let time = await oracle.getCurrentTime();
+        time = time - 8000;
+        const intrest = await bondingContract._getIntrestRate(time);
+        console.log(intrest);
+        assert(intrest);
+      })
+*/
+      it('should calculate intrest', async () => {
+        let index = await bondingContract.getIndex()
+        let value = await bondingContract.getCurrentValue(index)
+        console.log(value);
+        assert.isAbove(value, 1000);
+      })
+
+    })
+
+
 
 });

@@ -393,20 +393,21 @@ contract SBToken is IERC20, ReentrancyGuard, Ownable {
 
         event StreamToBondingCreated(uint streamId);
 
-        function createStreamToBonding(uint amount) public returns(uint){
+        function createStreamToBonding(address sender, uint amount) external returns(uint){
+          require(msg.sender == _bondingContract, "!bondingContract");
 
           uint _globalStreamTime = globalStreamTime;
-          if(streamTimeModifier[msg.sender] != 0) {
-            _globalStreamTime = (globalStreamTime.div(1000)).mul(streamTimeModifier[msg.sender]);
+          if(streamTimeModifier[sender] != 0) {
+            _globalStreamTime = (globalStreamTime.div(1000)).mul(streamTimeModifier[sender]);
           }
 
-          _beforeTokenTransfer(msg.sender, _bondingContract, amount);
-          require(streamsIndex[msg.sender][2] == 0, "sender has existing stream");
+          _beforeTokenTransfer(sender, _bondingContract, amount);
+          require(streamsIndex[sender][2] == 0, "sender has existing stream");
 
           /* Create and store the stream object. */
           uint256 streamId = nextStreamId;
-          _createStream(msg.sender, _bondingContract, amount, _globalStreamTime, streamId);
-          streamsIndex[msg.sender][2] = streamId;
+          _createStream(sender, _bondingContract, amount, _globalStreamTime, streamId);
+          streamsIndex[sender][2] = streamId;
 
           nextStreamId = nextStreamId.add(1);
           emit StreamToBondingCreated(streamId);
