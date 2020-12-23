@@ -8,6 +8,7 @@ describe("SBToken", function() {
   let couponContract;
   let dustCollector;
   let oracle;
+  let shares;
 
   beforeEach(async () => {
     deployer = await ethers.provider.getSigner(0);
@@ -18,22 +19,26 @@ describe("SBToken", function() {
     const SBToken = await ethers.getContractFactory("SBToken");
     const Bonding = await ethers.getContractFactory("bondingContract");
     const Oracle = await ethers.getContractFactory("PriceOracle");
+    const Shares = await ethers.getContractFactory("bLSD");
+
     token = await SBToken.deploy(ethers.utils.parseEther(supply));
     bondingContract = await Bonding.deploy();
     oracle = await Oracle.deploy();
+    shares = await Shares.deploy();
+
     await token.deployed();
     await token.changeBondingContract(bondingContract.address);
     await token.changeCouponContract(couponContract.getAddress());
     await token.changeDustCollector(dustCollector.getAddress());
-    await bondingContract.setPair(oracle.address);
-
+    await bondingContract.setOracle(oracle.address);
+/*
     await token.mint(ethers.utils.parseEther(supply));
 
     await token.transfer(
       bondingContract.address,
       ethers.utils.parseEther(supply)
     );
-
+*/
   });
 
 
@@ -116,6 +121,8 @@ describe("SBToken", function() {
     //console.log(token.address);
     assert.equal(tokenAddress, token.address);
   })
+
+/*
   it('should see bonding balance after token is set', async () => {
     await bondingContract.setToken(token.address);
     await token.transfer(
@@ -129,7 +136,7 @@ describe("SBToken", function() {
 
   })
 
-/*
+
   describe('a transfer', () => {
     let recipient;
     beforeEach(async () => {
@@ -1031,56 +1038,55 @@ describe("SBToken", function() {
       })
     })
 */
-    describe('a bonding intrest calculation', async() => {
+    describe('a bonding interaction', async() => {
 
       beforeEach(async () => {
         await bondingContract.setToken(token.address);
         await token.approve(bondingContract.address, ethers.utils.parseEther(supply));
-        await bondingContract.bondTokens(ethers.utils.parseEther('1000'));
-/*
-          await hre.network.provider.request({
-            method: "evm_increaseTime",
-            params: [3602]
-          });
-          await hre.network.provider.request({
-             method: "evm_mine",
-             params: []
-          });
-          await oracle.storePrice(66312345678, 69412345678);
+        await bondingContract.setShares(shares.address);
+        await bondingContract.setCouponContract(couponContract.getAddress());
+        await shares.setBondingContract(bondingContract.address);
+        await bondingContract.bondTokens(ethers.utils.parseEther('100'));
 
-          await hre.network.provider.request({
-            method: "evm_increaseTime",
-            params: [3612]
-          });
-          await hre.network.provider.request({
-             method: "evm_mine",
-             params: []
-          });
-          await oracle.storePrice(66712345678, 68412345678);
 
-          await hre.network.provider.request({
-            method: "evm_increaseTime",
-            params: [3633]
-          });
-          await hre.network.provider.request({
-             method: "evm_mine",
-             params: []
-          });
-          await oracle.storePrice(65912345678, 67212345678);
-
-          await hre.network.provider.request({
-            method: "evm_increaseTime",
-            params: [3602]
-          });
-          await hre.network.provider.request({
-             method: "evm_mine",
-             params: []
-          });
-          await oracle.storePrice(67112345678, 67312345678);
-*/
       })
 
+      it('should have bonded tokens', async () => {
+        let _shares = await shares.balanceOf(deployer.getAddress());
+        //console.log(_shares);
+        assert(_shares)
+      })
 
+      it('should recieve rewards from couponContract', async () => {
+        await bondingContract.connect(couponContract).increaseShareValue(ethers.utils.parseEther('10'));
+        const balance = await bondingContract.getRewardsBalance();
+        const shouldBe = ethers.utils.parseEther('110')
+        //console.log(balance);
+        assert.equal(balance.toString(), shouldBe.toString());
+      })
+
+      it('should redeem rewards', async () => {
+        await token.transfer(
+          bondingContract.address,
+          ethers.utils.parseEther('10')
+        );
+        await bondingContract.connect(couponContract).increaseShareValue(ethers.utils.parseEther('10'));
+        //const balance = await bondingContract.getRewardsBalance();
+        //let bondingBalance = await token.balanceOf(bondingContract.address);
+        //let shareValue = await bondingContract.getCurrentShareValue();
+        await bondingContract.redeemShares(ethers.utils.parseEther('100'));
+        let stream = await token.getStream(1);
+        /*
+        console.log(balance);
+        console.log(shareValue);
+        console.log(bondingBalance);
+        */
+        console.log(stream);
+        
+        assert(stream);
+      })
+
+/*
       it('should get index for address', async () => {
         const index = await bondingContract.getIndex();
         //console.log(index);
@@ -1092,7 +1098,7 @@ describe("SBToken", function() {
         //console.log(deposit);
         assert(deposit);
       })
-/*
+
       it('shoould show interest rate', async () => {
         let time = await oracle.getCurrentTime();
         time = time - 8000;
@@ -1100,13 +1106,14 @@ describe("SBToken", function() {
         console.log(intrest);
         assert(intrest);
       })
-*/
+
       it('should calculate intrest', async () => {
         let index = await bondingContract.getIndex()
         let value = await bondingContract.getCurrentValue(index)
         console.log(value);
         assert.isAbove(value, 1000);
       })
+*/
 
     })
 

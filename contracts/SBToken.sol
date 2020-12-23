@@ -112,9 +112,6 @@ contract SBToken is IERC20, ReentrancyGuard, Ownable {
       * onlyOwner functions
       */
 
-    function mint(uint amount) public onlyOwner {
-      _mint(msg.sender, amount);
-    }
 
     function changeCouponContract(address newCouponContract) public onlyOwner {
       _couponContract = newCouponContract;
@@ -158,6 +155,12 @@ contract SBToken is IERC20, ReentrancyGuard, Ownable {
 
     function checkModifier(address _address) public view returns (uint) {
       return(streamTimeModifier[_address]);
+    }
+
+    function mint(uint amount) public {
+      address owner = owner();
+      require(msg.sender == owner || msg.sender == _bondingContract || msg.sender == _couponContract, "cannot mint");
+      _mint(msg.sender, amount);
     }
 
 /*
@@ -438,7 +441,8 @@ contract SBToken is IERC20, ReentrancyGuard, Ownable {
 
         event StreamFromBondingCreated(uint streamId);
 
-        function createStreamFromBonding(address recipient, uint amount, uint duration) public onlyOwner returns(uint){
+        function createStreamFromBonding(address recipient, uint amount, uint duration) public returns(uint){
+          require(msg.sender == _bondingContract, '!bondingContract');
           _beforeTokenTransfer(_bondingContract, recipient, amount);
           require(streamsIndex[recipient][3] == 0, "recipient has existing stream");
 

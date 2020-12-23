@@ -12,7 +12,14 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 contract PriceOracle {
 
   using SafeMath for uint;
-  uint public price0CumulativeLast;
+
+
+  function update(address tokenA, address tokenB) external {
+
+  }
+  function consult(address tokenIn, uint amountIn, address tokenOut) external view returns (uint amountOut) {
+    amountOut = 980000000000000000;
+  }
 
 
 /*
