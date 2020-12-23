@@ -1045,6 +1045,7 @@ describe("SBToken", function() {
         await token.approve(bondingContract.address, ethers.utils.parseEther(supply));
         await bondingContract.setShares(shares.address);
         await bondingContract.setCouponContract(couponContract.getAddress());
+        await bondingContract.setOracle(oracle.address);
         await shares.setBondingContract(bondingContract.address);
         await bondingContract.bondTokens(ethers.utils.parseEther('100'));
 
@@ -1157,6 +1158,74 @@ describe("SBToken", function() {
         }
         assert(ex);
 
+      })
+      it('should sell shares at a discount when code is enabled', async () => {
+        await bondingContract.setBondingDiscountMultiplier(ethers.utils.parseEther('1'));
+        await bondingContract.bondTokens(ethers.utils.parseEther('100'));
+        let _shares = await shares.balanceOf(deployer.getAddress());
+        let expect = ethers.utils.parseEther('200')
+        //console.log(_shares.toString());
+        assert.isAbove(_shares, expect);
+      })
+
+      it('should not allow bond transaction is price is above threshold', async () => {
+        await bondingContract.setMaxBondingPrice('960000000000000000');
+
+        let ex;
+        try {
+            await bondingContract.bondTokens(ethers.utils.parseEther('100'));
+        }
+        catch(_ex) {
+          ex = _ex;
+        }
+        //console.log(ex);
+        assert(ex);
+      })
+
+      it('should create stream to bonding', async () => {
+        await bondingContract.setBondStreamTime(3600);
+        await bondingContract.bondTokens(ethers.utils.parseEther('100'));
+        let stream = await token.getStream(1);
+        //console.log(stream);
+        assert(stream);
+      })
+
+      it('should cancel stream', async () => {
+        await bondingContract.setBondStreamTime(3600);
+        await bondingContract.bondTokens(ethers.utils.parseEther('100'));
+        let balance = await token.balanceOf(bondingContract.address);
+        //console.log('contract balance', balance.toString());
+
+        let _shares = await shares.balanceOf(deployer.getAddress());
+        //console.log('user shares', _shares.toString());
+        await hre.network.provider.request({
+          method: "evm_increaseTime",
+          params: [1000]
+        });
+        await hre.network.provider.request({
+           method: "evm_mine",
+           params: []
+        });
+        _shares = await shares.balanceOf(deployer.getAddress());
+        //console.log('user shares', _shares.toString());
+
+        await bondingContract.cancelBondStream();
+
+        _shares = await shares.balanceOf(deployer.getAddress());
+        //console.log('user shares', _shares.toString());
+
+        balance = await token.balanceOf(bondingContract.address);
+        //console.log('contract balance', balance.toString());
+
+        let ex;
+        try {
+            let stream = await token.getStream(1);
+        }
+        catch(_ex) {
+          ex = _ex;
+        }
+        //console.log(ex)
+        assert(ex);
       })
 
 /*
