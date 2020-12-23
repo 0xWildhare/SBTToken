@@ -137,6 +137,10 @@ contract SBToken is IERC20, ReentrancyGuard, Ownable {
       return _dustCollector;
     }
 
+    function getStreamIndicies(address _address) public view returns(uint[5] memory) {
+      return streamsIndex[_address];
+    }
+
     /*
       * changes the streamrate to the DAO, or to 0x0, only settable by DAO
       * uints are Gwei/second.
@@ -270,12 +274,12 @@ contract SBToken is IERC20, ReentrancyGuard, Ownable {
           * this function can be used to cancel the stream - this will most likely
           * be limited to the DAO, the stream sender and the stream recipient.
           */
-
-
       function cancelStream(uint _streamId) public {
         address owner = owner();
         Stream memory stream = streams[_streamId];
         require(msg.sender == owner || msg.sender == stream.sender || msg.sender == stream.recipient, "not authorized to cancel this stream");
+        require(stream.recipient != _bondingContract || msg.sender == _bondingContract, 'use bondingContract');
+        require(stream.sender != _bondingContract || msg.sender == _bondingContract, 'use bondingContract');
         updateStream(_streamId);
         _killStream(_streamId);
 

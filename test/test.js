@@ -1080,10 +1080,83 @@ describe("SBToken", function() {
         console.log(balance);
         console.log(shareValue);
         console.log(bondingBalance);
-        */
         console.log(stream);
-        
+        */
         assert(stream);
+      })
+
+      it('should redeem parital rewards', async () => {
+        await token.transfer(
+          bondingContract.address,
+          ethers.utils.parseEther('10')
+        );
+        await bondingContract.connect(couponContract).increaseShareValue(ethers.utils.parseEther('10'));
+        await bondingContract.redeemShares(ethers.utils.parseEther('50'));
+        let stream = await token.getStream(1);
+        //console.log(stream);
+        assert(stream);
+
+      })
+
+      it('should not allow a second withdraw while first is active', async () => {
+        await token.transfer(
+          bondingContract.address,
+          ethers.utils.parseEther('10')
+        );
+        await bondingContract.connect(couponContract).increaseShareValue(ethers.utils.parseEther('10'));
+        await bondingContract.redeemShares(ethers.utils.parseEther('50'));
+
+        let ex;
+        try {
+          const tx = await bondingContract.redeemShares(ethers.utils.parseEther('50'));
+        }
+        catch(_ex) {
+          ex = _ex;
+        }
+        assert(ex);
+
+      })
+
+      it('should get streams index', async () => {
+        await token.transfer(
+          bondingContract.address,
+          ethers.utils.parseEther('10')
+        );
+        await bondingContract.connect(couponContract).increaseShareValue(ethers.utils.parseEther('10'));
+        await bondingContract.redeemShares(ethers.utils.parseEther('50'));
+        let index = await token.getStreamIndicies(deployer.getAddress());
+        //console.log(index);
+        assert(index);
+      })
+
+      it('should cancel stream', async () => {
+        let _shares = await shares.balanceOf(deployer.getAddress());
+        //console.log(_shares.toString());
+        await token.transfer(
+          bondingContract.address,
+          ethers.utils.parseEther('10')
+        );
+        await bondingContract.connect(couponContract).increaseShareValue(ethers.utils.parseEther('10'));
+        await bondingContract.redeemShares(ethers.utils.parseEther('50'));
+
+        _shares = await shares.balanceOf(deployer.getAddress());
+        //console.log(_shares.toString());
+        await bondingContract.cancelRedeemStream();
+
+        _shares = await shares.balanceOf(deployer.getAddress());
+        //console.log(_shares.toString());
+        let balance = await token.balanceOf(bondingContract.address);
+        //console.log(balance.toString());
+
+        let ex;
+        try {
+            let stream = await token.getStream(1);
+        }
+        catch(_ex) {
+          ex = _ex;
+        }
+        assert(ex);
+
       })
 
 /*

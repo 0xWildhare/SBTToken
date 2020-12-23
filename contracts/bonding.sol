@@ -17,6 +17,21 @@ interface Token {
   function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
   function createStreamToBonding(address sender, uint amount) external returns(uint);
   function createStreamFromBonding(address recipient, uint amount, uint duration) external returns(uint);
+  function getStream(uint256 streamId)
+    external
+    view
+    returns (
+        address sender,
+        address recipient,
+        uint256 amount,
+        uint256 startTime,
+        uint256 stopTime,
+        uint256 remainingBalance,
+        uint256 ratePerSecond
+    );
+  function updateStream(uint streamId) external;
+  function getStreamIndicies(address _address) external view returns(uint[5] memory);
+  function cancelStream(uint _streamId) external;
 }
 
 interface SlidingWindowOracle {
@@ -97,10 +112,14 @@ contract bondingContract is Ownable, Initializable {
     uint currentPrice = _oracle.consult(address(_token), targetPrice, targetToken);
     require(currentPrice < maxBondingPrice, 'price too high');
     _token.transferFrom(msg.sender, address(this), amount);
+    _bond(amount);
+  }
+  function _bond(uint amount) internal {
     uint shareValue = getCurrentShareValue();
     uint numberOfShares = amount.div(shareValue).mul(targetPrice);
     _rewardsBalance = _rewardsBalance.add(amount);
     if(_bondingDiscountMultiplier != 0) {
+      uint currentPrice = _oracle.consult(address(_token), targetPrice, targetToken);
       uint bonus = (targetPrice.sub(currentPrice)).mul(numberOfShares).mul(_bondingDiscountMultiplier).div(targetPrice.mul(targetPrice));
       numberOfShares = numberOfShares.add(bonus);
     }
@@ -126,6 +145,17 @@ contract bondingContract is Ownable, Initializable {
     uint tokenAmount = amount.mul(shareValue).div(targetPrice);
     _rewardsBalance = _rewardsBalance.sub(tokenAmount);
     _token.createStreamFromBonding(msg.sender, tokenAmount, _streamTime);
+  }
+
+  function cancelRedeemStream() public {
+    _oracle.update(address(this), targetToken);
+    uint[5] memory streams = _token.getStreamIndicies(msg.sender);
+    uint index = streams[3];
+    require(index != 0, 'no stream');
+    _token.updateStream(index);
+    (,,,,,uint amount,) = _token.getStream(index);
+    _token.cancelStream(index);
+    _bond(amount);
   }
 
 
