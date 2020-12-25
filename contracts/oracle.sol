@@ -14,11 +14,16 @@ contract PriceOracle {
   using SafeMath for uint;
 
 
+  uint price = 980000000000000000;
+
   function update(address tokenA, address tokenB) external {
 
   }
   function consult(address tokenIn, uint amountIn, address tokenOut) external view returns (uint amountOut) {
-    amountOut = 980000000000000000;
+    amountOut = price;
+  }
+  function changePrice(uint newPrice) public {
+    price = newPrice;
   }
 
 

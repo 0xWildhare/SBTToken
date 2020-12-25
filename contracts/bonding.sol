@@ -119,7 +119,6 @@ contract bondingContract is Ownable, Initializable {
     _maxBondingPrice = _newMaxBondingPrice;
   }
 
-//this method will require multiple revisions to accomodate streaming into bonding. also, would the shares be required to stream out?
   function bondTokens(uint amount) public {
     _oracle.update(address(this), targetToken);
     uint currentPrice = _oracle.consult(address(_token), targetPrice, targetToken);
@@ -155,10 +154,15 @@ contract bondingContract is Ownable, Initializable {
     _oracle.update(address(this), targetToken);
     require(_shares.balanceOf(msg.sender) >= amount, 'not enough shares');
     uint shareValue = getCurrentShareValue();
-    _shares.burn(msg.sender, amount);
     uint tokenAmount = amount.mul(shareValue).div(targetPrice);
     _rewardsBalance = _rewardsBalance.sub(tokenAmount);
-    _token.createStreamFromBonding(msg.sender, tokenAmount, _redeemStreamTime);
+    _shares.burn(msg.sender, amount);
+    if(_redeemStreamTime == 0 ) _token.transferFrom(address(this), msg.sender, amount);
+    else _token.createStreamFromBonding(msg.sender, tokenAmount, _redeemStreamTime);
+  }
+
+  function redeemAllShares() public {
+    redeemShares(_shares.balanceOf(msg.sender));
   }
 
   function cancelRedeemStream() public {
@@ -179,6 +183,7 @@ contract bondingContract is Ownable, Initializable {
     require(index != 0, 'no stream');
     _token.updateStream(index);
     (,,,,,uint remainingBalance,) = _token.getStream(index);
+    _rewardsBalance = _rewardsBalance.sub(remainingBalance);
     uint shareValue = getCurrentShareValue();
     uint unpaidShares = remainingBalance.div(shareValue).mul(targetPrice);
     _shares.burn(msg.sender, unpaidShares);
