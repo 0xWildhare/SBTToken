@@ -12,11 +12,36 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/proxy/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+
 interface Token {
   function balanceOf(address addy) external view returns(uint);
   function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+  function transfer(address recipient, uint256 amount) external returns (bool);
+  /*
   function createStreamToBonding(address sender, uint amount, uint duration) external returns(uint);
   function createStreamFromBonding(address recipient, uint amount, uint duration) external returns(uint);
+  function getStream(uint256 streamId)
+    external
+    view
+    returns (
+        address sender,
+        address recipient,
+        uint256 amount,
+        uint256 startTime,
+        uint256 stopTime,
+        uint256 remainingBalance,
+        uint256 ratePerSecond
+    );
+  function updateStream(uint streamId) external;
+  function getStreamIndicies(address _address) external view returns(uint[5] memory);
+  function cancelStream(uint _streamId) external;
+  */
+}
+
+interface Sablier {
+  function createStream(address sender, address recipient, uint256 deposit, address tokenAddress, uint256 startTime, uint256 stopTime)
+      external
+      returns (uint256);
   function getStream(uint256 streamId)
     external
     view
@@ -53,6 +78,7 @@ contract bondingContract is Ownable, Initializable {
   Token private _token;
   SlidingWindowOracle private _oracle;
   Shares private _shares;
+  Sablier private _sablier;
 
   uint targetPrice = 1000000000000000000;
   address targetToken = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48; //USDC
@@ -73,6 +99,9 @@ contract bondingContract is Ownable, Initializable {
   }
   function getShares() public view returns(address) {
     return address(_shares);
+  }
+  function getSablier() public view returns(address) {
+    return address(_sablier);
   }
   function getBondingDiscountMultiplier() public view returns(uint) {
     return _bondingDiscountMultiplier;
@@ -103,6 +132,9 @@ contract bondingContract is Ownable, Initializable {
   function setShares(address _newShares) public onlyOwner {
     _shares = Shares(_newShares);
   }
+  function setSablier(address _newSablier) public onlyOwner {
+    _sablier = Sablier(_newSablier);
+  }
   function setBondingDiscountMultiplier(uint _newMultiplier) public onlyOwner {
     _bondingDiscountMultiplier = _newMultiplier;
   }
@@ -122,11 +154,18 @@ contract bondingContract is Ownable, Initializable {
   function bondTokens(uint amount) public {
     _oracle.update(address(this), targetToken);
     uint currentPrice = _oracle.consult(address(_token), targetPrice, targetToken);
+    uint deposit;
     require(currentPrice < _maxBondingPrice, 'price too high');
     if(_bondStreamTime == 0 ) _token.transferFrom(msg.sender, address(this), amount);
-    else _token.createStreamToBonding(msg.sender, amount, _bondStreamTime);
-    _bond(amount);
+    else{
+      uint stopTime = block.timestamp.add(_bondStreamTime);
+      deposit = amount.sub(amount % _bondStreamTime); //sablier requires amount to be divisible by stream time.
+//this requires msg.sender to be user - not this contract.
+      _sablier.createStream(msg.sender, address(this), deposit, address(_token), block.timestamp, stopTime);
+    }
+    _bond(deposit);
   }
+
   function _bond(uint amount) internal {
     uint shareValue = getCurrentShareValue();
     uint numberOfShares = amount.div(shareValue).mul(targetPrice);
@@ -136,7 +175,13 @@ contract bondingContract is Ownable, Initializable {
       uint bonus = (targetPrice.sub(currentPrice)).mul(numberOfShares).mul(_bondingDiscountMultiplier).div(targetPrice.mul(targetPrice));
       numberOfShares = numberOfShares.add(bonus);
     }
-    _shares.mint(msg.sender, numberOfShares);
+    if(_bondStreamTime == 0 ) _shares.mint(msg.sender, numberOfShares);
+    else {
+      _shares.mint(address(this), numberOfShares);
+      uint stopTime = block.timestamp.add(_bondStreamTime);
+      uint deposit = numberOfShares.sub(numberOfShares % _bondStreamTime); //sablier requires amount to be divisible by stream time.
+      _sablier.createStream(msg.sender, address(this), deposit, address(_token), block.timestamp, stopTime);
+    }
   }
 
   function increaseShareValue(uint amount)public {
@@ -157,14 +202,15 @@ contract bondingContract is Ownable, Initializable {
     uint tokenAmount = amount.mul(shareValue).div(targetPrice);
     _rewardsBalance = _rewardsBalance.sub(tokenAmount);
     _shares.burn(msg.sender, amount);
-    if(_redeemStreamTime == 0 ) _token.transferFrom(address(this), msg.sender, amount);
-    else _token.createStreamFromBonding(msg.sender, tokenAmount, _redeemStreamTime);
+    uint stopTime = block.timestamp.add(_redeemStreamTime);
+    if(_redeemStreamTime == 0 ) _token.transfer(msg.sender, amount);
+    else _sablier.createStream(address(this), msg.sender, tokenAmount, address(_shares), block.timestamp, stopTime);
   }
 
   function redeemAllShares() public {
     redeemShares(_shares.balanceOf(msg.sender));
   }
-
+/* TODO: update this
   function cancelRedeemStream() public {
     _oracle.update(address(this), targetToken);
     uint[5] memory streams = _token.getStreamIndicies(msg.sender);
@@ -175,7 +221,8 @@ contract bondingContract is Ownable, Initializable {
     _token.cancelStream(index);
     _bond(amount);
   }
-
+  */
+/* TODO: update this
   function cancelBondStream() public {
     _oracle.update(address(this), targetToken);
     uint[5] memory streams = _token.getStreamIndicies(msg.sender);
@@ -189,6 +236,6 @@ contract bondingContract is Ownable, Initializable {
     _shares.burn(msg.sender, unpaidShares);
     _token.cancelStream(index);
   }
-
+*/
 
 }

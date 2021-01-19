@@ -72,7 +72,7 @@ contract SBToken is IERC20, ReentrancyGuard, Ownable {
    * @notice The stream objects identifiable by their unsigned integer ids.
    */
   mapping(uint256 => Stream) private streams;
-
+  Stream[] moreStreams;
 
       /**
     * @dev Throws if the provided id does not point to a valid stream.

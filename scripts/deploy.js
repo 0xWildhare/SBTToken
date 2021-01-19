@@ -12,7 +12,7 @@ async function main() {
   const token = await SBToken.deploy(ethers.utils.parseEther("1000"));
   await token.deployed();
   console.log("SBToken deployed to:", token.address);
-  */
+*/
 //bonding
   const Bonding = await hre.ethers.getContractFactory("bondingContract");
   //const bonding = await Bonding.attach(Bonding_address);
@@ -20,8 +20,17 @@ async function main() {
   const bonding = await Bonding.deploy();
   await bonding.deployed();
   console.log("bondingContract deployed to:", bonding.address);
+/*  
+//coupon
+    const Coupon = await hre.ethers.getContractFactory("couponContract");
+    //const bonding = await Bonding.attach(Bonding_address);
 
-/*
+    const coupon = await Coupon.deploy();
+    await coupon.deployed();
+    console.log("couponContract deployed to:", coupon.address);
+
+
+
 //shares
   const Shares = await hre.ethers.getContractFactory("bLSD");
   const shares = await Shares.deploy();
@@ -45,7 +54,7 @@ async function main() {
   await shares.setBondingContract(bonding.address);
   _bonding = await shares.getBondingContract();
   console.log("shares - bonding address set as: ", _bonding);
-*/
+
 //set addresses for bonding
   //token
   await bonding.setToken(Token_address);
@@ -66,7 +75,7 @@ async function main() {
   await bonding.setCouponContract(0x308D7102eD770618F543724a24f7a6E0c47b7B29);
   let _coupon = await bonding.getCouponContract();
   console.log("bonding - coupon address set as: ", _coupon);
-
+*/
 }
 
 main()
